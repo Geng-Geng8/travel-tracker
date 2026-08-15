@@ -44,6 +44,12 @@
       box-shadow: 0 4px 14px 0 rgba(37, 99, 235, 0.4);
     }
 
+    .curr-btn-active {
+      background: #3b82f6 !important;
+      color: #ffffff !important;
+      font-weight: 700 !important;
+    }
+
     .glass-card {
       background: rgba(18, 24, 38, 0.75);
       backdrop-filter: blur(12px);
@@ -65,11 +71,11 @@
     <header class="glass-card rounded-2xl p-4 flex items-center justify-between shadow-xl">
       <div class="flex items-center space-x-3">
         <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 font-black text-lg">
-          ₱
+          ₱ / $
         </div>
         <div>
           <h1 class="text-base font-bold text-white tracking-tight flex items-center gap-1.5">
-            Travel Spend <span class="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-semibold border border-amber-500/30">PHP ➔ CAD</span>
+            Travel Spend <span class="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-semibold border border-amber-500/30">PHP ⇄ CAD</span>
           </h1>
           <p id="rateBadge" class="text-xs text-slate-400 font-medium flex items-center gap-1 mt-0.5">
             <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
@@ -88,8 +94,8 @@
       
       <div class="flex justify-between items-start mb-2">
         <span class="text-xs uppercase tracking-wider font-semibold text-slate-400">Total Spent So Far</span>
-        <button onclick="toggleHistoryModal()" class="text-xs text-amber-400 hover:text-amber-300 font-semibold flex items-center gap-1">
-          <i class="fa-solid fa-clock-rotate-left"></i> History (<span id="historyCount">0</span>)
+        <button type="button" onclick="toggleHistoryModal()" class="text-xs text-amber-400 hover:text-amber-300 font-semibold flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-xl transition active:scale-95">
+          <i class="fa-solid fa-clock-rotate-left"></i> History & Edit (<span id="historyCount">0</span>)
         </button>
       </div>
 
@@ -99,64 +105,79 @@
       </div>
       
       <div class="mt-1 text-xs text-slate-400 flex items-center gap-1.5">
-        <span>Source:</span>
+        <span>Combined Total:</span>
         <span class="font-bold text-slate-200" id="heroPhpTotal">₱0.00 PHP</span>
       </div>
     </section>
 
+    <!-- Editing Alert Banner -->
+    <div id="editingBanner" class="hidden p-3 bg-blue-950/80 border border-blue-500 rounded-2xl flex items-center justify-between shadow-lg">
+      <div class="flex items-center gap-2 text-xs font-semibold text-blue-300">
+        <i class="fa-solid fa-pen-to-square text-amber-400 text-sm"></i>
+        <span>Editing Existing Transaction</span>
+      </div>
+      <button type="button" onclick="cancelEditMode()" class="text-xs text-slate-300 hover:text-white bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-700">
+        Cancel Edit
+      </button>
+    </div>
+
     <!-- Main Expense Form -->
     <form id="expenseForm" onsubmit="handleFormSubmit(event)" class="space-y-4">
 
-      <!-- Amount Input -->
+      <!-- Currency Choice & Cost Input -->
       <div class="glass-card rounded-3xl p-4 sm:p-5 space-y-3">
-        <div class="flex justify-between items-center">
-          <label for="costPhpInput" class="text-xs font-bold uppercase tracking-wider text-slate-400">Enter Amount (PHP ₱)</label>
-          <div class="text-xs text-amber-400 font-semibold flex items-center gap-1">
-            <i class="fa-solid fa-calculator"></i> Auto-Converts
+        
+        <!-- Input Currency Toggle -->
+        <div class="flex justify-between items-center pb-1">
+          <label class="text-xs font-bold uppercase tracking-wider text-slate-400">Select Input Currency</label>
+          <div class="bg-slate-900 border border-slate-700 p-1 rounded-xl flex gap-1">
+            <button type="button" id="currBtnPhp" onclick="setInputCurrency('PHP')" class="curr-btn-active px-3 py-1 rounded-lg text-xs font-bold transition">
+              ₱ PHP
+            </button>
+            <button type="button" id="currBtnCad" onclick="setInputCurrency('CAD')" class="text-slate-400 px-3 py-1 rounded-lg text-xs font-bold transition">
+              $ CAD
+            </button>
           </div>
         </div>
 
+        <!-- Large Numeric Input -->
         <div class="flex items-center gap-2">
-          <button type="button" onclick="adjustAmount(-100)" class="w-12 h-14 bg-slate-800 hover:bg-slate-700 border border-slate-700 active:scale-95 rounded-2xl text-xl font-black text-slate-200 flex items-center justify-center transition shadow-md">
+          <button type="button" onclick="adjustAmount(-1)" class="w-12 h-14 bg-slate-800 hover:bg-slate-700 border border-slate-700 active:scale-95 rounded-2xl text-xl font-black text-slate-200 flex items-center justify-center transition shadow-md">
             -
           </button>
           
           <div class="relative flex-1">
-            <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-2xl font-extrabold text-amber-400">₱</span>
+            <span id="inputSymbol" class="absolute left-3.5 top-1/2 -translate-y-1/2 text-2xl font-extrabold text-amber-400">₱</span>
             <input 
-              id="costPhpInput" 
+              id="costInput" 
               type="number" 
               inputmode="decimal" 
               step="any" 
-              placeholder="0" 
+              placeholder="0.00" 
               required 
-              oninput="handlePhpInputChange()"
+              oninput="handleCostInputChange()"
               class="w-full bg-slate-900/90 border-2 border-slate-700 focus:border-amber-500 rounded-2xl py-3 pl-10 pr-3 text-center text-3xl font-extrabold text-white placeholder-slate-600 focus:outline-none transition"
             >
           </div>
 
-          <button type="button" onclick="adjustAmount(100)" class="w-12 h-14 bg-slate-800 hover:bg-slate-700 border border-slate-700 active:scale-95 rounded-2xl text-xl font-black text-slate-200 flex items-center justify-center transition shadow-md">
+          <button type="button" onclick="adjustAmount(1)" class="w-12 h-14 bg-slate-800 hover:bg-slate-700 border border-slate-700 active:scale-95 rounded-2xl text-xl font-black text-slate-200 flex items-center justify-center transition shadow-md">
             +
           </button>
         </div>
 
-        <!-- Quick Increments -->
-        <div class="grid grid-cols-4 gap-1.5 pt-1">
-          <button type="button" onclick="adjustAmount(50)" class="py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 text-xs font-bold text-slate-300 active:scale-95 transition">+₱50</button>
-          <button type="button" onclick="adjustAmount(100)" class="py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 text-xs font-bold text-slate-300 active:scale-95 transition">+₱100</button>
-          <button type="button" onclick="adjustAmount(500)" class="py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 text-xs font-bold text-slate-300 active:scale-95 transition">+₱500</button>
-          <button type="button" onclick="adjustAmount(1000)" class="py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 text-xs font-bold text-slate-300 active:scale-95 transition">+₱1K</button>
+        <!-- Quick Chips (Dynamic based on PHP or CAD) -->
+        <div id="quickChipsContainer" class="grid grid-cols-4 gap-1.5 pt-1">
+          <!-- Populated by JavaScript -->
         </div>
 
-        <!-- Converted CAD Preview -->
+        <!-- Live Converted Result Preview -->
         <div class="mt-2 p-3 bg-gradient-to-r from-blue-950/60 to-indigo-950/60 border border-blue-500/30 rounded-2xl flex items-center justify-between">
           <div class="flex items-center space-x-2">
-            <span class="w-7 h-7 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs font-bold">CAD</span>
-            <span class="text-xs font-medium text-slate-300">Equivalent in Dollars</span>
+            <span id="previewBadge" class="w-8 h-7 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs font-bold">CAD</span>
+            <span id="previewLabel" class="text-xs font-medium text-slate-300">Equivalent in Canadian Dollars</span>
           </div>
           <div class="text-right">
-            <span id="convertedCadPreview" class="text-lg sm:text-xl font-extrabold text-blue-300">$0.00</span>
-            <span class="text-xs text-blue-400/80 font-bold ml-0.5">CAD</span>
+            <span id="convertedPreview" class="text-lg sm:text-xl font-extrabold text-blue-300">$0.00</span>
           </div>
         </div>
       </div>
@@ -171,7 +192,7 @@
             class="pay-btn pay-btn-active py-3.5 px-4 rounded-2xl border border-slate-700 bg-slate-800/80 text-slate-200 text-sm font-semibold flex items-center justify-center gap-2 transition"
           >
             <i class="fa-solid fa-money-bill-wave text-emerald-400"></i>
-            <span>Cash (₱)</span>
+            <span>Cash</span>
           </button>
           <button 
             type="button" 
@@ -221,7 +242,7 @@
           </button>
           <button type="button" onclick="selectCategory('Travel', this)" class="btn-pill py-3 px-2 rounded-2xl border border-slate-700 bg-slate-800/90 text-slate-200 text-xs font-semibold flex flex-col items-center justify-center gap-1 transition">
             <i class="fa-solid fa-plane-departure text-sm"></i>
-            <span>Travel</span>
+            <span>Travel / Flight</span>
           </button>
           <button type="button" onclick="selectCategory('Fitness', this)" class="btn-pill py-3 px-2 rounded-2xl border border-slate-700 bg-slate-800/90 text-slate-200 text-xs font-semibold flex flex-col items-center justify-center gap-1 transition">
             <i class="fa-solid fa-dumbbell text-sm"></i>
@@ -229,7 +250,7 @@
           </button>
           <button type="button" onclick="selectCategory('Entertainment', this)" class="btn-pill py-3 px-2 rounded-2xl border border-slate-700 bg-slate-800/90 text-slate-200 text-xs font-semibold flex flex-col items-center justify-center gap-1 transition">
             <i class="fa-solid fa-film text-sm"></i>
-            <span>Fun / Events</span>
+            <span>Events</span>
           </button>
           <button type="button" onclick="selectCategory('Amazon', this)" class="btn-pill py-3 px-2 rounded-2xl border border-slate-700 bg-slate-800/90 text-slate-200 text-xs font-semibold flex flex-col items-center justify-center gap-1 transition">
             <i class="fa-solid fa-cart-shopping text-sm"></i>
@@ -249,7 +270,7 @@
           <input 
             id="itemInput" 
             type="text" 
-            placeholder="e.g. Jollibee, Grab ride, 7-Eleven" 
+            placeholder="e.g. Air Canada Flight, Hotel, Jollibee" 
             required 
             class="w-full bg-slate-900/90 border border-slate-700 rounded-2xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition"
           >
@@ -270,14 +291,14 @@
             <input 
               id="notesInput" 
               type="text" 
-              placeholder="e.g. Split with crew" 
+              placeholder="e.g. Flight booked from Toronto" 
               class="w-full bg-slate-900/90 border border-slate-700 rounded-2xl px-4 py-3 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition"
             >
           </div>
         </div>
       </div>
 
-      <!-- Submit & Reset Buttons -->
+      <!-- Action Buttons -->
       <div class="flex items-center gap-3 pt-1">
         <button 
           type="button" 
@@ -293,13 +314,42 @@
           class="w-2/3 py-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black rounded-2xl text-sm sm:text-base shadow-xl shadow-amber-500/25 active:scale-95 transition flex items-center justify-center gap-2"
         >
           <i class="fa-solid fa-cloud-arrow-up text-lg"></i>
-          <span>Save Expense</span>
+          <span id="submitBtnText">Save Expense</span>
         </button>
       </div>
 
     </form>
 
   </main>
+
+  <!-- History & Edit Modal -->
+  <div id="historyModal" class="fixed inset-0 bg-black/80 backdrop-blur-md hidden z-50 flex items-center justify-center p-4">
+    <div class="glass-card bg-slate-900 border border-slate-700 rounded-3xl p-5 w-full max-w-md max-h-[85vh] flex flex-col shadow-2xl">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-3 mb-3">
+        <h2 class="text-base font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-list-check text-amber-400"></i> Trip Expenses Log
+        </h2>
+        <button type="button" onclick="toggleHistoryModal()" class="text-slate-400 hover:text-white p-1">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <p class="text-[11px] text-slate-400 mb-2">Tap ✏️ to edit in form, or 🗑️ to delete completely.</p>
+
+      <div id="historyListContainer" class="overflow-y-auto space-y-2 flex-1 pr-1 text-xs">
+        <!-- Rendered dynamically -->
+      </div>
+
+      <div class="pt-3 border-t border-slate-800 flex justify-between items-center text-xs">
+        <button type="button" onclick="clearLocalHistory()" class="text-red-400 hover:text-red-300 font-semibold flex items-center gap-1">
+          <i class="fa-solid fa-trash-can"></i> Clear Local Cache
+        </button>
+        <button type="button" onclick="toggleHistoryModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
 
   <!-- Settings Modal -->
   <div id="settingsModal" class="fixed inset-0 bg-black/80 backdrop-blur-md hidden z-50 flex items-center justify-center p-4">
@@ -308,7 +358,7 @@
         <h2 class="text-base font-bold text-white flex items-center gap-2">
           <i class="fa-solid fa-sliders text-amber-400"></i> Settings & Sync
         </h2>
-        <button onclick="closeSettingsModal()" class="text-slate-400 hover:text-white p-1">
+        <button type="button" onclick="closeSettingsModal()" class="text-slate-400 hover:text-white p-1">
           <i class="fa-solid fa-xmark text-lg"></i>
         </button>
       </div>
@@ -321,11 +371,11 @@
             type="url" 
             class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white text-xs focus:border-amber-500 focus:outline-none font-mono"
           >
-          <p class="text-[11px] text-slate-500 mt-1">Direct link to append rows into your Google Sheet.</p>
+          <p class="text-[11px] text-slate-500 mt-1">Direct link to your Google Sheet webhook.</p>
         </div>
 
         <div>
-          <label class="font-bold text-slate-300 block mb-1">Custom PHP/CAD Rate Override (Optional)</label>
+          <label class="font-bold text-slate-300 block mb-1">Custom CAD per PHP Rate (Optional)</label>
           <div class="flex gap-2">
             <input 
               id="settingCustomRate" 
@@ -334,42 +384,17 @@
               placeholder="e.g. 0.0238" 
               class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white text-xs focus:border-amber-500 focus:outline-none font-mono"
             >
-            <button onclick="fetchLiveExchangeRate()" class="px-3 bg-slate-800 border border-slate-700 hover:bg-slate-700 rounded-xl text-amber-400 font-bold whitespace-nowrap">
+            <button type="button" onclick="fetchLiveExchangeRate()" class="px-3 bg-slate-800 border border-slate-700 hover:bg-slate-700 rounded-xl text-amber-400 font-bold whitespace-nowrap">
               <i class="fa-solid fa-arrows-rotate"></i> Live
             </button>
           </div>
-          <p class="text-[11px] text-slate-500 mt-1">Leave blank to use live Google currency feed.</p>
+          <p class="text-[11px] text-slate-500 mt-1">Leave blank to use live open rate feed.</p>
         </div>
       </div>
 
       <div class="pt-2 flex gap-2">
-        <button onclick="saveSettings()" class="w-full py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs transition">
+        <button type="button" onclick="saveSettings()" class="w-full py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs transition">
           Save Configuration
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- History Modal -->
-  <div id="historyModal" class="fixed inset-0 bg-black/80 backdrop-blur-md hidden z-50 flex items-center justify-center p-4">
-    <div class="glass-card bg-slate-900 border border-slate-700 rounded-3xl p-6 w-full max-w-md max-h-[80vh] flex flex-col shadow-2xl">
-      <div class="flex justify-between items-center border-b border-slate-800 pb-3 mb-3">
-        <h2 class="text-base font-bold text-white flex items-center gap-2">
-          <i class="fa-solid fa-list-check text-amber-400"></i> Trip Expenses Log
-        </h2>
-        <button onclick="toggleHistoryModal()" class="text-slate-400 hover:text-white p-1">
-          <i class="fa-solid fa-xmark text-lg"></i>
-        </button>
-      </div>
-
-      <div id="historyListContainer" class="overflow-y-auto space-y-2 flex-1 pr-1 text-xs"></div>
-
-      <div class="pt-3 border-t border-slate-800 flex justify-between items-center text-xs">
-        <button onclick="clearLocalHistory()" class="text-red-400 hover:text-red-300 font-semibold flex items-center gap-1">
-          <i class="fa-solid fa-trash-can"></i> Clear Local Cache
-        </button>
-        <button onclick="toggleHistoryModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl">
-          Close
         </button>
       </div>
     </div>
@@ -382,13 +407,14 @@
   </div>
 
   <script>
-    // HARDCODED WEBHOOK URL
     const DEFAULT_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbzQ3VhysqxNriorHHpemjctP4fcQXXLWRwdWMugLcMGJq-TIDiuVfF68p-fh-v_4vSk/exec';
 
     let exchangeRateCadPerPhp = 0.0238; 
+    let currentInputCurrency = 'PHP'; // 'PHP' or 'CAD'
     let selectedPaymentMethod = 'Cash';
     let selectedBucket = 'Play';
     let selectedCategory = 'Eating Out';
+    let editingExpenseId = null; // null if new, number if editing
     let localExpenses = JSON.parse(localStorage.getItem('trip_expenses') || '[]');
 
     window.addEventListener('DOMContentLoaded', () => {
@@ -407,9 +433,11 @@
         fetchLiveExchangeRate();
       }
 
+      renderQuickChips();
       refreshTotalsAndHistory();
     });
 
+    // Exchange Rate Fetching
     async function fetchLiveExchangeRate() {
       try {
         const res = await fetch('https://open.er-api.com/v6/latest/PHP');
@@ -417,7 +445,7 @@
         if (data && data.rates && data.rates.CAD) {
           exchangeRateCadPerPhp = data.rates.CAD;
           updateRateDisplay();
-          handlePhpInputChange();
+          handleCostInputChange();
         }
       } catch (err) {
         console.warn('Could not fetch live rate, using default.', err);
@@ -430,18 +458,80 @@
       document.getElementById('displayRateText').innerText = phpPerCad;
     }
 
-    function handlePhpInputChange() {
-      const phpVal = parseFloat(document.getElementById('costPhpInput').value) || 0;
-      const cadVal = (phpVal * exchangeRateCadPerPhp).toFixed(2);
-      document.getElementById('convertedCadPreview').innerText = `$${cadVal}`;
+    // Input Currency Mode Switch
+    function setInputCurrency(curr) {
+      currentInputCurrency = curr;
+      const btnPhp = document.getElementById('currBtnPhp');
+      const btnCad = document.getElementById('currBtnCad');
+      const symbol = document.getElementById('inputSymbol');
+      const previewBadge = document.getElementById('previewBadge');
+      const previewLabel = document.getElementById('previewLabel');
+
+      if (curr === 'PHP') {
+        btnPhp.className = 'curr-btn-active px-3 py-1 rounded-lg text-xs font-bold transition';
+        btnCad.className = 'text-slate-400 px-3 py-1 rounded-lg text-xs font-bold transition';
+        symbol.innerText = '₱';
+        previewBadge.innerText = 'CAD';
+        previewBadge.className = 'w-8 h-7 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs font-bold';
+        previewLabel.innerText = 'Equivalent in Canadian Dollars';
+      } else {
+        btnCad.className = 'curr-btn-active px-3 py-1 rounded-lg text-xs font-bold transition';
+        btnPhp.className = 'text-slate-400 px-3 py-1 rounded-lg text-xs font-bold transition';
+        symbol.innerText = '$';
+        previewBadge.innerText = 'PHP';
+        previewBadge.className = 'w-8 h-7 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-bold';
+        previewLabel.innerText = 'Equivalent in Philippine Pesos';
+      }
+
+      renderQuickChips();
+      handleCostInputChange();
+    }
+
+    function renderQuickChips() {
+      const container = document.getElementById('quickChipsContainer');
+      if (currentInputCurrency === 'PHP') {
+        container.innerHTML = `
+          <button type="button" onclick="adjustAmount(50)" class="py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 text-xs font-bold text-slate-300 active:scale-95 transition">+₱50</button>
+          <button type="button" onclick="adjustAmount(100)" class="py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 text-xs font-bold text-slate-300 active:scale-95 transition">+₱100</button>
+          <button type="button" onclick="adjustAmount(500)" class="py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 text-xs font-bold text-slate-300 active:scale-95 transition">+₱500</button>
+          <button type="button" onclick="adjustAmount(1000)" class="py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 text-xs font-bold text-slate-300 active:scale-95 transition">+₱1K</button>
+        `;
+      } else {
+        container.innerHTML = `
+          <button type="button" onclick="adjustAmount(10)" class="py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 text-xs font-bold text-slate-300 active:scale-95 transition">+$10</button>
+          <button type="button" onclick="adjustAmount(50)" class="py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 text-xs font-bold text-slate-300 active:scale-95 transition">+$50</button>
+          <button type="button" onclick="adjustAmount(100)" class="py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 text-xs font-bold text-slate-300 active:scale-95 transition">+$100</button>
+          <button type="button" onclick="adjustAmount(500)" class="py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 text-xs font-bold text-slate-300 active:scale-95 transition">+$500</button>
+        `;
+      }
+    }
+
+    function handleCostInputChange() {
+      const val = parseFloat(document.getElementById('costInput').value) || 0;
+      const preview = document.getElementById('convertedPreview');
+
+      if (currentInputCurrency === 'PHP') {
+        const cad = (val * exchangeRateCadPerPhp).toFixed(2);
+        preview.innerText = `$${cad} CAD`;
+      } else {
+        const php = (val / exchangeRateCadPerPhp).toFixed(2);
+        preview.innerText = `₱${parseFloat(php).toLocaleString()} PHP`;
+      }
     }
 
     function adjustAmount(delta) {
-      const input = document.getElementById('costPhpInput');
+      const input = document.getElementById('costInput');
       let current = parseFloat(input.value) || 0;
-      let next = Math.max(0, current + delta);
+      let step = 1;
+      if (currentInputCurrency === 'PHP') {
+        step = (Math.abs(delta) === 1) ? 50 : delta;
+      } else {
+        step = (Math.abs(delta) === 1) ? 5 : delta;
+      }
+      
+      let next = Math.max(0, current + (delta < 0 ? -Math.abs(step) : Math.abs(step)));
       input.value = next;
-      handlePhpInputChange();
+      handleCostInputChange();
     }
 
     function selectPaymentMethod(method) {
@@ -459,43 +549,142 @@
     function selectBucket(bucketName, element) {
       selectedBucket = bucketName;
       document.querySelectorAll('#bucketContainer .btn-pill').forEach(btn => btn.classList.remove('btn-pill-active'));
-      element.classList.add('btn-pill-active');
+      if (element) {
+        element.classList.add('btn-pill-active');
+      } else {
+        document.querySelectorAll('#bucketContainer .btn-pill').forEach(btn => {
+          if (btn.innerText.includes(bucketName)) btn.classList.add('btn-pill-active');
+        });
+      }
     }
 
     function selectCategory(categoryName, element) {
       selectedCategory = categoryName;
       document.querySelectorAll('#categoryContainer .btn-pill').forEach(btn => btn.classList.remove('btn-pill-active'));
-      element.classList.add('btn-pill-active');
+      if (element) {
+        element.classList.add('btn-pill-active');
+      } else {
+        document.querySelectorAll('#categoryContainer .btn-pill').forEach(btn => {
+          if (btn.innerText.includes(categoryName)) btn.classList.add('btn-pill-active');
+        });
+      }
+    }
+
+    // EDIT TRANSACTION MODE
+    function startEditExpense(id) {
+      const item = localExpenses.find(e => e.id === id);
+      if (!item) return;
+
+      editingExpenseId = id;
+      
+      // Determine currency preference based on what was logged
+      if (item.input_currency === 'CAD') {
+        setInputCurrency('CAD');
+        document.getElementById('costInput').value = item.cost_cad;
+      } else {
+        setInputCurrency('PHP');
+        document.getElementById('costInput').value = item.cost_php;
+      }
+
+      document.getElementById('dateInput').value = item.date;
+      document.getElementById('itemInput').value = item.item;
+      document.getElementById('notesInput').value = item.notes || '';
+
+      selectPaymentMethod(item.payment_method || 'Cash');
+      selectBucket(item.bucket);
+      selectCategory(item.category);
+
+      handleCostInputChange();
+
+      // UI updates for edit mode
+      document.getElementById('editingBanner').classList.remove('hidden');
+      document.getElementById('submitBtnText').innerText = 'Update Expense';
+      
+      toggleHistoryModal();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function cancelEditMode() {
+      editingExpenseId = null;
+      document.getElementById('editingBanner').classList.add('hidden');
+      document.getElementById('submitBtnText').innerText = 'Save Expense';
+      resetFormInputs();
+    }
+
+    // DELETE TRANSACTION
+    async function deleteSingleExpense(id) {
+      if (!confirm('Delete this expense? It will be removed from your app and Google Sheet.')) return;
+
+      // 1. Remove from local phone storage
+      localExpenses = localExpenses.filter(item => item.id !== id);
+      localStorage.setItem('trip_expenses', JSON.stringify(localExpenses));
+      refreshTotalsAndHistory();
+
+      if (editingExpenseId === id) {
+        cancelEditMode();
+      }
+
+      showToast('Deleting from Google Sheet...');
+
+      // 2. Remove from Google Sheets via Webhook
+      const webhookUrl = localStorage.getItem('gas_webhook_url') || DEFAULT_WEBHOOK_URL;
+      if (webhookUrl) {
+        try {
+          await fetch(webhookUrl, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ action: 'delete', id: id })
+          });
+          showToast('Deleted permanently!');
+        } catch (err) {
+          console.error(err);
+          showToast('Removed locally (Sheet sync error)', true);
+        }
+      }
     }
 
     function resetFormInputs() {
-      document.getElementById('costPhpInput').value = '';
+      document.getElementById('costInput').value = '';
       document.getElementById('itemInput').value = '';
       document.getElementById('notesInput').value = '';
       document.getElementById('dateInput').value = new Date().toISOString().split('T')[0];
-      handlePhpInputChange();
+      handleCostInputChange();
+      if (editingExpenseId) {
+        cancelEditMode();
+      }
     }
 
+    // SUBMIT (SAVE OR UPDATE)
     async function handleFormSubmit(e) {
       e.preventDefault();
       
-      const costPhp = parseFloat(document.getElementById('costPhpInput').value);
-      if (!costPhp || costPhp <= 0) {
+      const inputVal = parseFloat(document.getElementById('costInput').value);
+      if (!inputVal || inputVal <= 0) {
         showToast('Please enter an amount greater than 0', true);
         return;
       }
 
-      const costCad = parseFloat((costPhp * exchangeRateCadPerPhp).toFixed(2));
+      let costPhp, costCad;
+      if (currentInputCurrency === 'PHP') {
+        costPhp = inputVal;
+        costCad = parseFloat((inputVal * exchangeRateCadPerPhp).toFixed(2));
+      } else {
+        costCad = inputVal;
+        costPhp = parseFloat((inputVal / exchangeRateCadPerPhp).toFixed(2));
+      }
+
       const date = document.getElementById('dateInput').value;
       const item = document.getElementById('itemInput').value.trim();
       const notes = document.getElementById('notesInput').value.trim();
 
       const expenseRecord = {
-        id: Date.now(),
+        id: editingExpenseId ? editingExpenseId : Date.now(),
         date: date,
         cost_php: costPhp,
         cost_cad: costCad,
         exchange_rate: exchangeRateCadPerPhp,
+        input_currency: currentInputCurrency,
         payment_method: selectedPaymentMethod,
         bucket: selectedBucket,
         category: selectedCategory,
@@ -503,7 +692,19 @@
         notes: notes
       };
 
-      localExpenses.unshift(expenseRecord);
+      // If editing, replace existing item; if new, prepend
+      if (editingExpenseId) {
+        const index = localExpenses.findIndex(e => e.id === editingExpenseId);
+        if (index !== -1) {
+          localExpenses[index] = expenseRecord;
+        }
+        editingExpenseId = null;
+        document.getElementById('editingBanner').classList.add('hidden');
+        document.getElementById('submitBtnText').innerText = 'Save Expense';
+      } else {
+        localExpenses.unshift(expenseRecord);
+      }
+
       localStorage.setItem('trip_expenses', JSON.stringify(localExpenses));
       refreshTotalsAndHistory();
 
@@ -526,10 +727,11 @@
       }
 
       submitBtn.disabled = false;
-      submitBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up text-lg"></i><span>Save Expense</span>';
+      submitBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up text-lg"></i><span id="submitBtnText">Save Expense</span>';
       resetFormInputs();
     }
 
+    // REFRESH TOTALS & HISTORY LIST
     function refreshTotalsAndHistory() {
       let totalPhp = 0;
       let totalCad = 0;
@@ -542,9 +744,9 @@
         totalCad += (item.cost_cad || 0);
 
         const card = document.createElement('div');
-        card.className = 'p-3 bg-slate-800/80 rounded-2xl border border-slate-700/60 flex justify-between items-center';
+        card.className = 'p-3 bg-slate-800/80 rounded-2xl border border-slate-700/60 flex justify-between items-center gap-2';
         card.innerHTML = `
-          <div>
+          <div class="flex-1 pr-1">
             <div class="font-bold text-white text-sm">${escapeHtml(item.item)}</div>
             <div class="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
               <span>${item.date}</span> • 
@@ -553,9 +755,19 @@
             </div>
             ${item.notes ? `<div class="text-[10px] text-slate-500 italic mt-0.5">"${escapeHtml(item.notes)}"</div>` : ''}
           </div>
-          <div class="text-right">
-            <div class="font-extrabold text-blue-300 text-sm">$${item.cost_cad.toFixed(2)} CAD</div>
-            <div class="text-[11px] font-semibold text-amber-400">₱${item.cost_php.toLocaleString()} PHP</div>
+          <div class="text-right flex items-center gap-2.5">
+            <div>
+              <div class="font-extrabold text-blue-300 text-sm">$${item.cost_cad.toFixed(2)} CAD</div>
+              <div class="text-[10px] font-semibold text-amber-400">₱${item.cost_php.toLocaleString()} PHP</div>
+            </div>
+            <div class="flex flex-col gap-1">
+              <button type="button" onclick="startEditExpense(${item.id})" title="Edit" class="w-8 h-8 rounded-lg bg-slate-700/60 hover:bg-slate-700 text-blue-400 active:scale-90 flex items-center justify-center transition">
+                <i class="fa-solid fa-pen text-xs"></i>
+              </button>
+              <button type="button" onclick="deleteSingleExpense(${item.id})" title="Delete" class="w-8 h-8 rounded-lg bg-slate-700/60 hover:bg-red-950/80 text-red-400 active:scale-90 flex items-center justify-center transition">
+                <i class="fa-solid fa-trash-can text-xs"></i>
+              </button>
+            </div>
           </div>
         `;
         container.appendChild(card);
@@ -571,7 +783,7 @@
     }
 
     function clearLocalHistory() {
-      if (confirm('Clear local history list on this device? (Entries in your Google Sheet remain untouched).')) {
+      if (confirm('Clear local history list on this phone? (Google Sheet records remain safe).')) {
         localExpenses = [];
         localStorage.setItem('trip_expenses', JSON.stringify([]));
         refreshTotalsAndHistory();
@@ -580,6 +792,7 @@
       }
     }
 
+    // Modal Utilities
     function openSettingsModal() {
       document.getElementById('settingsModal').classList.remove('hidden');
     }
@@ -611,7 +824,7 @@
 
       closeSettingsModal();
       showToast('Settings Saved!');
-      handlePhpInputChange();
+      handleCostInputChange();
     }
 
     function showToast(message, isError = false) {
