@@ -68,10 +68,9 @@
 
   <main class="w-full max-w-lg space-y-4">
 
-    <!-- Refined Header -->
+    <!-- Header -->
     <header class="glass-card rounded-2xl p-3.5 px-4 flex items-center justify-between shadow-xl">
       <div class="flex items-center space-x-3">
-        <!-- Clean Luxury Icon Badge -->
         <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-600/10 border border-amber-500/40 flex items-center justify-center text-amber-400 shadow-inner">
           <i class="fa-solid fa-right-left text-base"></i>
         </div>
@@ -84,7 +83,7 @@
           </div>
           <p id="rateBadge" class="text-xs text-slate-400 font-medium flex items-center gap-1.5 mt-0.5">
             <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-            1 CAD ≈ <span id="displayRateText" class="text-slate-200 font-bold">42.50</span> PHP
+            1 CAD ≈ <span id="displayRateText" class="text-slate-200 font-bold">44.00</span> PHP
           </p>
         </div>
       </div>
@@ -93,7 +92,7 @@
       </button>
     </header>
 
-    <!-- Trip Total Hero Card -->
+    <!-- Total Spending Card -->
     <section class="glass-card rounded-3xl p-5 relative overflow-hidden shadow-2xl border border-amber-500/20">
       <div class="absolute -right-6 -bottom-6 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl pointer-events-none"></div>
       
@@ -111,11 +110,11 @@
       
       <div class="mt-1 text-xs text-slate-400 flex items-center gap-1.5">
         <span>Combined Total:</span>
-        <span class="font-bold text-slate-200" id="heroPhpTotal">₱0.00 PHP</span>
+        <span class="font-bold text-slate-200" id="heroPhpTotal">₱0 PHP</span>
       </div>
     </section>
 
-    <!-- Editing Alert Banner -->
+    <!-- Editing Mode Banner -->
     <div id="editingBanner" class="hidden p-3 bg-blue-950/80 border border-blue-500 rounded-2xl flex items-center justify-between shadow-lg">
       <div class="flex items-center gap-2 text-xs font-semibold text-blue-300">
         <i class="fa-solid fa-pen-to-square text-amber-400 text-sm"></i>
@@ -126,13 +125,12 @@
       </button>
     </div>
 
-    <!-- Main Expense Form -->
+    <!-- Expense Entry Form -->
     <form id="expenseForm" onsubmit="handleFormSubmit(event)" class="space-y-4">
 
-      <!-- Currency Choice & Cost Input -->
+      <!-- Cost Input Section -->
       <div class="glass-card rounded-3xl p-4 sm:p-5 space-y-3">
         
-        <!-- Input Currency Switcher -->
         <div class="flex justify-between items-center pb-1">
           <label class="text-xs font-bold uppercase tracking-wider text-slate-400">Select Input Currency</label>
           <div class="bg-slate-900 border border-slate-700/90 p-1 rounded-xl flex gap-1 shadow-inner">
@@ -145,7 +143,7 @@
           </div>
         </div>
 
-        <!-- Large Numeric Input -->
+        <!-- Numeric Input -->
         <div class="flex items-center gap-2">
           <button type="button" onclick="adjustAmount(-1)" class="w-12 h-14 bg-slate-800 hover:bg-slate-700 border border-slate-700 active:scale-95 rounded-2xl text-xl font-black text-slate-200 flex items-center justify-center transition shadow-md">
             -
@@ -170,10 +168,8 @@
           </button>
         </div>
 
-        <!-- Quick Increments -->
-        <div id="quickChipsContainer" class="grid grid-cols-4 gap-1.5 pt-1">
-          <!-- Populated by JavaScript -->
-        </div>
+        <!-- Quick Chips -->
+        <div id="quickChipsContainer" class="grid grid-cols-4 gap-1.5 pt-1"></div>
 
         <!-- Converted Preview -->
         <div class="mt-2 p-3 bg-gradient-to-r from-blue-950/60 to-indigo-950/60 border border-blue-500/30 rounded-2xl flex items-center justify-between">
@@ -224,7 +220,7 @@
           </button>
           <button type="button" onclick="selectBucket('Small Business', this)" class="btn-pill py-3 px-2 rounded-2xl border border-slate-700 bg-slate-800/90 text-slate-200 text-xs font-semibold flex flex-col items-center justify-center gap-1 transition">
             <i class="fa-solid fa-briefcase text-sm"></i>
-            <span>Small Biz</span>
+            <span>Small Business</span>
           </button>
           <button type="button" onclick="selectBucket('Education', this)" class="btn-pill py-3 px-2 rounded-2xl border border-slate-700 bg-slate-800/90 text-slate-200 text-xs font-semibold flex flex-col items-center justify-center gap-1 transition">
             <i class="fa-solid fa-graduation-cap text-sm"></i>
@@ -239,33 +235,11 @@
 
       <!-- Categories -->
       <div class="glass-card rounded-3xl p-4 sm:p-5 space-y-2">
-        <label class="text-xs font-bold uppercase tracking-wider text-slate-400">Category</label>
-        <div class="grid grid-cols-3 gap-2" id="categoryContainer">
-          <button type="button" onclick="selectCategory('Eating Out', this)" class="btn-pill btn-pill-active py-3 px-2 rounded-2xl border border-slate-700 bg-slate-800/90 text-slate-200 text-xs font-semibold flex flex-col items-center justify-center gap-1 transition">
-            <i class="fa-solid fa-utensils text-sm"></i>
-            <span>Eating Out</span>
-          </button>
-          <button type="button" onclick="selectCategory('Travel', this)" class="btn-pill py-3 px-2 rounded-2xl border border-slate-700 bg-slate-800/90 text-slate-200 text-xs font-semibold flex flex-col items-center justify-center gap-1 transition">
-            <i class="fa-solid fa-plane-departure text-sm"></i>
-            <span>Travel / Flight</span>
-          </button>
-          <button type="button" onclick="selectCategory('Fitness', this)" class="btn-pill py-3 px-2 rounded-2xl border border-slate-700 bg-slate-800/90 text-slate-200 text-xs font-semibold flex flex-col items-center justify-center gap-1 transition">
-            <i class="fa-solid fa-dumbbell text-sm"></i>
-            <span>Fitness</span>
-          </button>
-          <button type="button" onclick="selectCategory('Entertainment', this)" class="btn-pill py-3 px-2 rounded-2xl border border-slate-700 bg-slate-800/90 text-slate-200 text-xs font-semibold flex flex-col items-center justify-center gap-1 transition">
-            <i class="fa-solid fa-film text-sm"></i>
-            <span>Events</span>
-          </button>
-          <button type="button" onclick="selectCategory('Amazon', this)" class="btn-pill py-3 px-2 rounded-2xl border border-slate-700 bg-slate-800/90 text-slate-200 text-xs font-semibold flex flex-col items-center justify-center gap-1 transition">
-            <i class="fa-solid fa-cart-shopping text-sm"></i>
-            <span>Shopping</span>
-          </button>
-          <button type="button" onclick="selectCategory('Clothing', this)" class="btn-pill py-3 px-2 rounded-2xl border border-slate-700 bg-slate-800/90 text-slate-200 text-xs font-semibold flex flex-col items-center justify-center gap-1 transition">
-            <i class="fa-solid fa-shirt text-sm"></i>
-            <span>Clothing</span>
-          </button>
+        <div class="flex justify-between items-center">
+          <label class="text-xs font-bold uppercase tracking-wider text-slate-400">Category</label>
+          <span id="activeBucketLabel" class="text-[11px] text-amber-400 font-semibold">Play Categories</span>
         </div>
+        <div class="grid grid-cols-3 gap-2" id="categoryContainer"></div>
       </div>
 
       <!-- Item, Date & Notes -->
@@ -275,7 +249,7 @@
           <input 
             id="itemInput" 
             type="text" 
-            placeholder="e.g. Air Canada Flight, Hotel, Jollibee" 
+            placeholder="e.g. Grab, Hotel, Jollibee, Flight" 
             required 
             class="w-full bg-slate-900/90 border border-slate-700 rounded-2xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition"
           >
@@ -296,7 +270,7 @@
             <input 
               id="notesInput" 
               type="text" 
-              placeholder="e.g. Booked in Toronto" 
+              placeholder="e.g. Split with crew" 
               class="w-full bg-slate-900/90 border border-slate-700 rounded-2xl px-4 py-3 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition"
             >
           </div>
@@ -327,23 +301,21 @@
 
   </main>
 
-  <!-- History & Edit Modal -->
+  <!-- History Modal -->
   <div id="historyModal" class="fixed inset-0 bg-black/80 backdrop-blur-md hidden z-50 flex items-center justify-center p-4">
     <div class="glass-card bg-slate-900 border border-slate-700 rounded-3xl p-5 w-full max-w-md max-h-[85vh] flex flex-col shadow-2xl">
       <div class="flex justify-between items-center border-b border-slate-800 pb-3 mb-3">
         <h2 class="text-base font-bold text-white flex items-center gap-2">
-          <i class="fa-solid fa-list-check text-amber-400"></i> Trip Expenses Log
+          <i class="fa-solid fa-list-check text-amber-400"></i> Travel Expenses Log
         </h2>
         <button type="button" onclick="toggleHistoryModal()" class="text-slate-400 hover:text-white p-1">
           <i class="fa-solid fa-xmark text-lg"></i>
         </button>
       </div>
 
-      <p class="text-[11px] text-slate-400 mb-2">Tap ✏️ to edit in form, or 🗑️ to delete completely.</p>
+      <p class="text-[11px] text-slate-400 mb-2">Tap ✏️ to edit in form, or 🗑️ to delete from Google Sheets.</p>
 
-      <div id="historyListContainer" class="overflow-y-auto space-y-2 flex-1 pr-1 text-xs">
-        <!-- Rendered dynamically -->
-      </div>
+      <div id="historyListContainer" class="overflow-y-auto space-y-2 flex-1 pr-1 text-xs"></div>
 
       <div class="pt-3 border-t border-slate-800 flex justify-between items-center text-xs">
         <button type="button" onclick="clearLocalHistory()" class="text-red-400 hover:text-red-300 font-semibold flex items-center gap-1">
@@ -356,12 +328,12 @@
     </div>
   </div>
 
-  <!-- Settings Modal -->
+  <!-- Settings Modal (With PIN Field) -->
   <div id="settingsModal" class="fixed inset-0 bg-black/80 backdrop-blur-md hidden z-50 flex items-center justify-center p-4">
     <div class="glass-card bg-slate-900 border border-slate-700 rounded-3xl p-6 w-full max-w-md space-y-4 shadow-2xl">
       <div class="flex justify-between items-center border-b border-slate-800 pb-3">
         <h2 class="text-base font-bold text-white flex items-center gap-2">
-          <i class="fa-solid fa-sliders text-amber-400"></i> Settings & Sync
+          <i class="fa-solid fa-sliders text-amber-400"></i> Settings & Security
         </h2>
         <button type="button" onclick="closeSettingsModal()" class="text-slate-400 hover:text-white p-1">
           <i class="fa-solid fa-xmark text-lg"></i>
@@ -374,9 +346,22 @@
           <input 
             id="settingWebhookUrl" 
             type="url" 
+            placeholder="https://script.google.com/macros/s/.../exec"
             class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white text-xs focus:border-amber-500 focus:outline-none font-mono"
           >
-          <p class="text-[11px] text-slate-500 mt-1">Direct link to your Google Sheet webhook.</p>
+          <p class="text-[11px] text-slate-500 mt-1">Direct link to your Travel Expenses webhook.</p>
+        </div>
+
+        <div>
+          <label class="font-bold text-slate-300 block mb-1">Security PIN / Passcode</label>
+          <input 
+            id="settingPin" 
+            type="password" 
+            inputmode="numeric"
+            placeholder="7492"
+            class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white text-xs focus:border-amber-500 focus:outline-none font-mono"
+          >
+          <p class="text-[11px] text-slate-500 mt-1">Must match the SECRET_PIN in your Apps Script.</p>
         </div>
 
         <div>
@@ -386,14 +371,14 @@
               id="settingCustomRate" 
               type="number" 
               step="0.0001" 
-              placeholder="e.g. 0.0238" 
+              placeholder="e.g. 0.0227" 
               class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white text-xs focus:border-amber-500 focus:outline-none font-mono"
             >
             <button type="button" onclick="fetchLiveExchangeRate()" class="px-3 bg-slate-800 border border-slate-700 hover:bg-slate-700 rounded-xl text-amber-400 font-bold whitespace-nowrap">
               <i class="fa-solid fa-arrows-rotate"></i> Live
             </button>
           </div>
-          <p class="text-[11px] text-slate-500 mt-1">Leave blank to use live open rate feed.</p>
+          <p class="text-[11px] text-slate-500 mt-1">Leave blank to use live Google currency feed.</p>
         </div>
       </div>
 
@@ -412,23 +397,31 @@
   </div>
 
   <script>
-    const DEFAULT_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbzQ3VhysqxNriorHHpemjctP4fcQXXLWRwdWMugLcMGJq-TIDiuVfF68p-fh-v_4vSk/exec';
+    const BUCKET_CATEGORIES = {
+      'Play': ['Fitness', 'Eating Out', 'Travel', 'Entertainment', 'Amazon', 'Clothing'],
+      'Necessity': ['Health', 'Household', 'Grocery', 'Car & Transportation', 'Personal Care', 'Taxes'],
+      'Small Business': ['Subscription', 'Websites', 'Marketing', 'Business', 'Ai Subscriptions', 'Travel and Transportation'],
+      'Education': ['Courses', 'Tech', 'Books'],
+      'Giving': ['Gifts', 'Charity', 'Misc']
+    };
 
-    let exchangeRateCadPerPhp = 0.0226; 
+    let exchangeRateCadPerPhp = 0.0227; 
     let currentInputCurrency = 'PHP';
     let selectedPaymentMethod = 'Cash';
     let selectedBucket = 'Play';
     let selectedCategory = 'Eating Out';
     let editingExpenseId = null;
-    let localExpenses = JSON.parse(localStorage.getItem('trip_expenses') || '[]');
+    let localExpenses = JSON.parse(localStorage.getItem('travel_expenses_log') || '[]');
 
     window.addEventListener('DOMContentLoaded', () => {
       document.getElementById('dateInput').value = new Date().toISOString().split('T')[0];
       
-      const savedWebhook = localStorage.getItem('gas_webhook_url') || DEFAULT_WEBHOOK_URL;
+      const savedWebhook = localStorage.getItem('gas_webhook_url') || '';
       document.getElementById('settingWebhookUrl').value = savedWebhook;
-      localStorage.setItem('gas_webhook_url', savedWebhook);
-      
+
+      const savedPin = localStorage.getItem('gas_pin') || '7492';
+      document.getElementById('settingPin').value = savedPin;
+
       const savedRate = localStorage.getItem('custom_exchange_rate');
       if (savedRate) {
         exchangeRateCadPerPhp = parseFloat(savedRate);
@@ -439,8 +432,13 @@
       }
 
       renderQuickChips();
+      renderCategoryButtons();
       refreshTotalsAndHistory();
     });
+
+    function generateAppSheetId() {
+      return Math.random().toString(16).substring(2, 10);
+    }
 
     async function fetchLiveExchangeRate() {
       try {
@@ -452,7 +450,6 @@
           handleCostInputChange();
         }
       } catch (err) {
-        console.warn('Could not fetch live rate, using default.', err);
         updateRateDisplay();
       }
     }
@@ -525,13 +522,7 @@
     function adjustAmount(delta) {
       const input = document.getElementById('costInput');
       let current = parseFloat(input.value) || 0;
-      let step = 1;
-      if (currentInputCurrency === 'PHP') {
-        step = (Math.abs(delta) === 1) ? 50 : delta;
-      } else {
-        step = (Math.abs(delta) === 1) ? 5 : delta;
-      }
-      
+      let step = (currentInputCurrency === 'PHP') ? ((Math.abs(delta) === 1) ? 50 : delta) : ((Math.abs(delta) === 1) ? 5 : delta);
       let next = Math.max(0, current + (delta < 0 ? -Math.abs(step) : Math.abs(step)));
       input.value = next;
       handleCostInputChange();
@@ -539,8 +530,7 @@
 
     function selectPaymentMethod(method) {
       selectedPaymentMethod = method;
-      const buttons = document.querySelectorAll('#paymentMethodContainer .pay-btn');
-      buttons.forEach(btn => {
+      document.querySelectorAll('#paymentMethodContainer .pay-btn').forEach(btn => {
         if (btn.innerText.includes(method)) {
           btn.classList.add('pay-btn-active');
         } else {
@@ -552,32 +542,50 @@
     function selectBucket(bucketName, element) {
       selectedBucket = bucketName;
       document.querySelectorAll('#bucketContainer .btn-pill').forEach(btn => btn.classList.remove('btn-pill-active'));
+      
       if (element) {
         element.classList.add('btn-pill-active');
       } else {
         document.querySelectorAll('#bucketContainer .btn-pill').forEach(btn => {
-          if (btn.innerText.includes(bucketName)) btn.classList.add('btn-pill-active');
+          if (btn.innerText.trim() === bucketName) btn.classList.add('btn-pill-active');
         });
       }
+
+      document.getElementById('activeBucketLabel').innerText = `${bucketName} Categories`;
+      renderCategoryButtons();
+    }
+
+    function renderCategoryButtons() {
+      const catContainer = document.getElementById('categoryContainer');
+      const cats = BUCKET_CATEGORIES[selectedBucket] || [];
+      catContainer.innerHTML = '';
+
+      if (!cats.includes(selectedCategory)) {
+        selectedCategory = cats[0] || '';
+      }
+
+      cats.forEach((catName) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.onclick = () => selectCategory(catName, btn);
+        const isActive = (catName === selectedCategory);
+        btn.className = `btn-pill ${isActive ? 'btn-pill-active' : ''} py-3 px-2 rounded-2xl border border-slate-700 bg-slate-800/90 text-slate-200 text-xs font-semibold text-center transition`;
+        btn.innerText = catName;
+        catContainer.appendChild(btn);
+      });
     }
 
     function selectCategory(categoryName, element) {
       selectedCategory = categoryName;
       document.querySelectorAll('#categoryContainer .btn-pill').forEach(btn => btn.classList.remove('btn-pill-active'));
-      if (element) {
-        element.classList.add('btn-pill-active');
-      } else {
-        document.querySelectorAll('#categoryContainer .btn-pill').forEach(btn => {
-          if (btn.innerText.includes(categoryName)) btn.classList.add('btn-pill-active');
-        });
-      }
+      if (element) element.classList.add('btn-pill-active');
     }
 
     function startEditExpense(id) {
-      const item = localExpenses.find(e => e.id === id);
+      const item = localExpenses.find(e => e.id.toString() === id.toString());
       if (!item) return;
 
-      editingExpenseId = id;
+      editingExpenseId = item.id;
       
       if (item.input_currency === 'CAD') {
         setInputCurrency('CAD');
@@ -593,7 +601,8 @@
 
       selectPaymentMethod(item.payment_method || 'Cash');
       selectBucket(item.bucket);
-      selectCategory(item.category);
+      selectedCategory = item.category;
+      renderCategoryButtons();
 
       handleCostInputChange();
 
@@ -614,29 +623,31 @@
     async function deleteSingleExpense(id) {
       if (!confirm('Delete this expense? It will be removed from your app and Google Sheet.')) return;
 
-      localExpenses = localExpenses.filter(item => item.id !== id);
-      localStorage.setItem('trip_expenses', JSON.stringify(localExpenses));
+      localExpenses = localExpenses.filter(item => item.id.toString() !== id.toString());
+      localStorage.setItem('travel_expenses_log', JSON.stringify(localExpenses));
       refreshTotalsAndHistory();
 
-      if (editingExpenseId === id) {
+      if (editingExpenseId && editingExpenseId.toString() === id.toString()) {
         cancelEditMode();
       }
 
       showToast('Deleting from Google Sheet...');
 
-      const webhookUrl = localStorage.getItem('gas_webhook_url') || DEFAULT_WEBHOOK_URL;
+      const webhookUrl = localStorage.getItem('gas_webhook_url');
+      const pin = localStorage.getItem('gas_pin') || '7492';
+
       if (webhookUrl) {
         try {
           await fetch(webhookUrl, {
             method: 'POST',
             mode: 'no-cors',
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({ action: 'delete', id: id })
+            body: JSON.stringify({ action: 'delete', id: id, pin: pin })
           });
           showToast('Deleted permanently!');
         } catch (err) {
           console.error(err);
-          showToast('Removed locally (Sheet sync error)', true);
+          showToast('Removed locally (Sync error)', true);
         }
       }
     }
@@ -647,9 +658,7 @@
       document.getElementById('notesInput').value = '';
       document.getElementById('dateInput').value = new Date().toISOString().split('T')[0];
       handleCostInputChange();
-      if (editingExpenseId) {
-        cancelEditMode();
-      }
+      if (editingExpenseId) cancelEditMode();
     }
 
     async function handleFormSubmit(e) {
@@ -673,9 +682,10 @@
       const date = document.getElementById('dateInput').value;
       const item = document.getElementById('itemInput').value.trim();
       const notes = document.getElementById('notesInput').value.trim();
+      const pin = localStorage.getItem('gas_pin') || '7492';
 
       const expenseRecord = {
-        id: editingExpenseId ? editingExpenseId : Date.now(),
+        id: editingExpenseId ? editingExpenseId : generateAppSheetId(),
         date: date,
         cost_php: costPhp,
         cost_cad: costCad,
@@ -685,14 +695,13 @@
         bucket: selectedBucket,
         category: selectedCategory,
         item: item,
-        notes: notes
+        notes: notes,
+        pin: pin
       };
 
       if (editingExpenseId) {
-        const index = localExpenses.findIndex(e => e.id === editingExpenseId);
-        if (index !== -1) {
-          localExpenses[index] = expenseRecord;
-        }
+        const index = localExpenses.findIndex(e => e.id.toString() === editingExpenseId.toString());
+        if (index !== -1) localExpenses[index] = expenseRecord;
         editingExpenseId = null;
         document.getElementById('editingBanner').classList.add('hidden');
         document.getElementById('submitBtnText').innerText = 'Save Expense';
@@ -700,25 +709,29 @@
         localExpenses.unshift(expenseRecord);
       }
 
-      localStorage.setItem('trip_expenses', JSON.stringify(localExpenses));
+      localStorage.setItem('travel_expenses_log', JSON.stringify(localExpenses));
       refreshTotalsAndHistory();
 
-      const webhookUrl = localStorage.getItem('gas_webhook_url') || DEFAULT_WEBHOOK_URL;
+      const webhookUrl = localStorage.getItem('gas_webhook_url');
       const submitBtn = document.getElementById('submitBtn');
       submitBtn.disabled = true;
       submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-lg"></i><span>Syncing...</span>';
 
-      try {
-        await fetch(webhookUrl, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify(expenseRecord)
-        });
-        showToast('Saved & Synced to Google Sheets!');
-      } catch (err) {
-        console.error(err);
-        showToast('Saved offline (Sync failed)', true);
+      if (webhookUrl) {
+        try {
+          await fetch(webhookUrl, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify(expenseRecord)
+          });
+          showToast('Saved to Google Sheet!');
+        } catch (err) {
+          console.error(err);
+          showToast('Saved offline (Sync failed)', true);
+        }
+      } else {
+        showToast('Saved locally (Add webhook in Settings)');
       }
 
       submitBtn.disabled = false;
@@ -752,13 +765,13 @@
           <div class="text-right flex items-center gap-2.5">
             <div>
               <div class="font-extrabold text-blue-300 text-sm">$${item.cost_cad.toFixed(2)} CAD</div>
-              <div class="text-[10px] font-semibold text-amber-400">₱${item.cost_php.toLocaleString()} PHP</div>
+              <div class="text-[10px] font-semibold text-amber-400">₱${Math.round(item.cost_php).toLocaleString()} PHP</div>
             </div>
             <div class="flex flex-col gap-1">
-              <button type="button" onclick="startEditExpense(${item.id})" title="Edit" class="w-8 h-8 rounded-lg bg-slate-700/60 hover:bg-slate-700 text-blue-400 active:scale-90 flex items-center justify-center transition">
+              <button type="button" onclick="startEditExpense('${item.id}')" title="Edit" class="w-8 h-8 rounded-lg bg-slate-700/60 hover:bg-slate-700 text-blue-400 active:scale-90 flex items-center justify-center transition">
                 <i class="fa-solid fa-pen text-xs"></i>
               </button>
-              <button type="button" onclick="deleteSingleExpense(${item.id})" title="Delete" class="w-8 h-8 rounded-lg bg-slate-700/60 hover:bg-red-950/80 text-red-400 active:scale-90 flex items-center justify-center transition">
+              <button type="button" onclick="deleteSingleExpense('${item.id}')" title="Delete" class="w-8 h-8 rounded-lg bg-slate-700/60 hover:bg-red-950/80 text-red-400 active:scale-90 flex items-center justify-center transition">
                 <i class="fa-solid fa-trash-can text-xs"></i>
               </button>
             </div>
@@ -779,7 +792,7 @@
     function clearLocalHistory() {
       if (confirm('Clear local history list on this phone? (Google Sheet records remain safe).')) {
         localExpenses = [];
-        localStorage.setItem('trip_expenses', JSON.stringify([]));
+        localStorage.setItem('travel_expenses_log', JSON.stringify([]));
         refreshTotalsAndHistory();
         toggleHistoryModal();
         showToast('Local history cleared');
@@ -800,11 +813,11 @@
 
     function saveSettings() {
       const url = document.getElementById('settingWebhookUrl').value.trim();
+      const pin = document.getElementById('settingPin').value.trim();
       const customRate = document.getElementById('settingCustomRate').value.trim();
 
-      if (url) {
-        localStorage.setItem('gas_webhook_url', url);
-      }
+      if (url) localStorage.setItem('gas_webhook_url', url);
+      if (pin) localStorage.setItem('gas_pin', pin);
 
       if (customRate && !isNaN(customRate)) {
         exchangeRateCadPerPhp = parseFloat(customRate);
