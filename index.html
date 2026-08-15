@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Vacation Expense Tracker | PHP & CAD</title>
+  <title>Travel Expense Tracker | PHP & CAD</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
@@ -45,13 +45,14 @@
     }
 
     .curr-btn-active {
-      background: #3b82f6 !important;
+      background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%) !important;
       color: #ffffff !important;
       font-weight: 700 !important;
+      box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
     }
 
     .glass-card {
-      background: rgba(18, 24, 38, 0.75);
+      background: rgba(18, 24, 38, 0.85);
       backdrop-filter: blur(12px);
       border: 1px solid rgba(255, 255, 255, 0.08);
     }
@@ -67,24 +68,28 @@
 
   <main class="w-full max-w-lg space-y-4">
 
-    <!-- Top Status Bar -->
-    <header class="glass-card rounded-2xl p-4 flex items-center justify-between shadow-xl">
+    <!-- Refined Header -->
+    <header class="glass-card rounded-2xl p-3.5 px-4 flex items-center justify-between shadow-xl">
       <div class="flex items-center space-x-3">
-        <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 font-black text-lg">
-          ₱ / $
+        <!-- Clean Luxury Icon Badge -->
+        <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-600/10 border border-amber-500/40 flex items-center justify-center text-amber-400 shadow-inner">
+          <i class="fa-solid fa-right-left text-base"></i>
         </div>
         <div>
-          <h1 class="text-base font-bold text-white tracking-tight flex items-center gap-1.5">
-            Travel Spend <span class="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-semibold border border-amber-500/30">PHP ⇄ CAD</span>
-          </h1>
-          <p id="rateBadge" class="text-xs text-slate-400 font-medium flex items-center gap-1 mt-0.5">
-            <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <div class="flex items-center gap-2">
+            <h1 class="text-sm sm:text-base font-extrabold text-white tracking-tight">Travel Tracker</h1>
+            <span class="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 font-bold border border-amber-500/30 uppercase tracking-wide">
+              PHP ⇄ CAD
+            </span>
+          </div>
+          <p id="rateBadge" class="text-xs text-slate-400 font-medium flex items-center gap-1.5 mt-0.5">
+            <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
             1 CAD ≈ <span id="displayRateText" class="text-slate-200 font-bold">42.50</span> PHP
           </p>
         </div>
       </div>
-      <button type="button" onclick="openSettingsModal()" aria-label="Open Settings" class="w-10 h-10 rounded-xl bg-slate-800/80 hover:bg-slate-700 active:scale-95 border border-slate-700/60 flex items-center justify-center text-slate-300 transition">
-        <i class="fa-solid fa-gear text-sm"></i>
+      <button type="button" onclick="openSettingsModal()" aria-label="Open Settings" class="w-10 h-10 rounded-xl bg-slate-800/90 hover:bg-slate-700 active:scale-95 border border-slate-700/80 flex items-center justify-center text-slate-300 transition shadow">
+        <i class="fa-solid fa-sliders text-sm"></i>
       </button>
     </header>
 
@@ -127,10 +132,10 @@
       <!-- Currency Choice & Cost Input -->
       <div class="glass-card rounded-3xl p-4 sm:p-5 space-y-3">
         
-        <!-- Input Currency Toggle -->
+        <!-- Input Currency Switcher -->
         <div class="flex justify-between items-center pb-1">
           <label class="text-xs font-bold uppercase tracking-wider text-slate-400">Select Input Currency</label>
-          <div class="bg-slate-900 border border-slate-700 p-1 rounded-xl flex gap-1">
+          <div class="bg-slate-900 border border-slate-700/90 p-1 rounded-xl flex gap-1 shadow-inner">
             <button type="button" id="currBtnPhp" onclick="setInputCurrency('PHP')" class="curr-btn-active px-3 py-1 rounded-lg text-xs font-bold transition">
               ₱ PHP
             </button>
@@ -165,12 +170,12 @@
           </button>
         </div>
 
-        <!-- Quick Chips (Dynamic based on PHP or CAD) -->
+        <!-- Quick Increments -->
         <div id="quickChipsContainer" class="grid grid-cols-4 gap-1.5 pt-1">
           <!-- Populated by JavaScript -->
         </div>
 
-        <!-- Live Converted Result Preview -->
+        <!-- Converted Preview -->
         <div class="mt-2 p-3 bg-gradient-to-r from-blue-950/60 to-indigo-950/60 border border-blue-500/30 rounded-2xl flex items-center justify-between">
           <div class="flex items-center space-x-2">
             <span id="previewBadge" class="w-8 h-7 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs font-bold">CAD</span>
@@ -291,7 +296,7 @@
             <input 
               id="notesInput" 
               type="text" 
-              placeholder="e.g. Flight booked from Toronto" 
+              placeholder="e.g. Booked in Toronto" 
               class="w-full bg-slate-900/90 border border-slate-700 rounded-2xl px-4 py-3 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition"
             >
           </div>
@@ -409,12 +414,12 @@
   <script>
     const DEFAULT_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbzQ3VhysqxNriorHHpemjctP4fcQXXLWRwdWMugLcMGJq-TIDiuVfF68p-fh-v_4vSk/exec';
 
-    let exchangeRateCadPerPhp = 0.0238; 
-    let currentInputCurrency = 'PHP'; // 'PHP' or 'CAD'
+    let exchangeRateCadPerPhp = 0.0226; 
+    let currentInputCurrency = 'PHP';
     let selectedPaymentMethod = 'Cash';
     let selectedBucket = 'Play';
     let selectedCategory = 'Eating Out';
-    let editingExpenseId = null; // null if new, number if editing
+    let editingExpenseId = null;
     let localExpenses = JSON.parse(localStorage.getItem('trip_expenses') || '[]');
 
     window.addEventListener('DOMContentLoaded', () => {
@@ -437,7 +442,6 @@
       refreshTotalsAndHistory();
     });
 
-    // Exchange Rate Fetching
     async function fetchLiveExchangeRate() {
       try {
         const res = await fetch('https://open.er-api.com/v6/latest/PHP');
@@ -458,7 +462,6 @@
       document.getElementById('displayRateText').innerText = phpPerCad;
     }
 
-    // Input Currency Mode Switch
     function setInputCurrency(curr) {
       currentInputCurrency = curr;
       const btnPhp = document.getElementById('currBtnPhp');
@@ -570,14 +573,12 @@
       }
     }
 
-    // EDIT TRANSACTION MODE
     function startEditExpense(id) {
       const item = localExpenses.find(e => e.id === id);
       if (!item) return;
 
       editingExpenseId = id;
       
-      // Determine currency preference based on what was logged
       if (item.input_currency === 'CAD') {
         setInputCurrency('CAD');
         document.getElementById('costInput').value = item.cost_cad;
@@ -596,7 +597,6 @@
 
       handleCostInputChange();
 
-      // UI updates for edit mode
       document.getElementById('editingBanner').classList.remove('hidden');
       document.getElementById('submitBtnText').innerText = 'Update Expense';
       
@@ -611,11 +611,9 @@
       resetFormInputs();
     }
 
-    // DELETE TRANSACTION
     async function deleteSingleExpense(id) {
       if (!confirm('Delete this expense? It will be removed from your app and Google Sheet.')) return;
 
-      // 1. Remove from local phone storage
       localExpenses = localExpenses.filter(item => item.id !== id);
       localStorage.setItem('trip_expenses', JSON.stringify(localExpenses));
       refreshTotalsAndHistory();
@@ -626,7 +624,6 @@
 
       showToast('Deleting from Google Sheet...');
 
-      // 2. Remove from Google Sheets via Webhook
       const webhookUrl = localStorage.getItem('gas_webhook_url') || DEFAULT_WEBHOOK_URL;
       if (webhookUrl) {
         try {
@@ -655,7 +652,6 @@
       }
     }
 
-    // SUBMIT (SAVE OR UPDATE)
     async function handleFormSubmit(e) {
       e.preventDefault();
       
@@ -692,7 +688,6 @@
         notes: notes
       };
 
-      // If editing, replace existing item; if new, prepend
       if (editingExpenseId) {
         const index = localExpenses.findIndex(e => e.id === editingExpenseId);
         if (index !== -1) {
@@ -731,7 +726,6 @@
       resetFormInputs();
     }
 
-    // REFRESH TOTALS & HISTORY LIST
     function refreshTotalsAndHistory() {
       let totalPhp = 0;
       let totalCad = 0;
@@ -778,7 +772,7 @@
       }
 
       document.getElementById('heroCadTotal').innerText = `$${totalCad.toFixed(2)}`;
-      document.getElementById('heroPhpTotal').innerText = `₱${totalPhp.toLocaleString()} PHP`;
+      document.getElementById('heroPhpTotal').innerText = `₱${Math.round(totalPhp).toLocaleString()} PHP`;
       document.getElementById('historyCount').innerText = localExpenses.length;
     }
 
@@ -792,7 +786,6 @@
       }
     }
 
-    // Modal Utilities
     function openSettingsModal() {
       document.getElementById('settingsModal').classList.remove('hidden');
     }
