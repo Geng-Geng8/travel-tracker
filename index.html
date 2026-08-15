@@ -87,9 +87,14 @@
           </p>
         </div>
       </div>
-      <button type="button" onclick="openSettingsModal()" aria-label="Open Settings" class="w-10 h-10 rounded-xl bg-slate-800/90 hover:bg-slate-700 active:scale-95 border border-slate-700/80 flex items-center justify-center text-slate-300 transition shadow">
-        <i class="fa-solid fa-sliders text-sm"></i>
-      </button>
+      <div class="flex items-center gap-2">
+        <button type="button" onclick="syncFromGoogleSheets(true)" title="Sync Sheet" class="w-10 h-10 rounded-xl bg-slate-800/90 hover:bg-slate-700 active:scale-95 border border-slate-700/80 flex items-center justify-center text-amber-400 transition shadow">
+          <i id="syncIcon" class="fa-solid fa-rotate text-sm"></i>
+        </button>
+        <button type="button" onclick="openSettingsModal()" aria-label="Open Settings" class="w-10 h-10 rounded-xl bg-slate-800/90 hover:bg-slate-700 active:scale-95 border border-slate-700/80 flex items-center justify-center text-slate-300 transition shadow">
+          <i class="fa-solid fa-sliders text-sm"></i>
+        </button>
+      </div>
     </header>
 
     <!-- Total Spending Card -->
@@ -97,7 +102,7 @@
       <div class="absolute -right-6 -bottom-6 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl pointer-events-none"></div>
       
       <div class="flex justify-between items-start mb-2">
-        <span class="text-xs uppercase tracking-wider font-semibold text-slate-400">Total Spent So Far</span>
+        <span class="text-xs uppercase tracking-wider font-semibold text-slate-400">Total Spent (From Sheet)</span>
         <button type="button" onclick="toggleHistoryModal()" class="text-xs text-amber-400 hover:text-amber-300 font-semibold flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-xl transition active:scale-95">
           <i class="fa-solid fa-clock-rotate-left"></i> History & Edit (<span id="historyCount">0</span>)
         </button>
@@ -128,7 +133,7 @@
     <!-- Expense Entry Form -->
     <form id="expenseForm" onsubmit="handleFormSubmit(event)" class="space-y-4">
 
-      <!-- Cost Input Section -->
+      <!-- Cost Input Card -->
       <div class="glass-card rounded-3xl p-4 sm:p-5 space-y-3">
         
         <div class="flex justify-between items-center pb-1">
@@ -168,7 +173,7 @@
           </button>
         </div>
 
-        <!-- Quick Chips -->
+        <!-- Quick Increments -->
         <div id="quickChipsContainer" class="grid grid-cols-4 gap-1.5 pt-1"></div>
 
         <!-- Converted Preview -->
@@ -233,7 +238,7 @@
         </div>
       </div>
 
-      <!-- Categories -->
+      <!-- Dynamic Categories -->
       <div class="glass-card rounded-3xl p-4 sm:p-5 space-y-2">
         <div class="flex justify-between items-center">
           <label class="text-xs font-bold uppercase tracking-wider text-slate-400">Category</label>
@@ -277,7 +282,7 @@
         </div>
       </div>
 
-      <!-- Action Buttons -->
+      <!-- Actions -->
       <div class="flex items-center gap-3 pt-1">
         <button 
           type="button" 
@@ -318,8 +323,8 @@
       <div id="historyListContainer" class="overflow-y-auto space-y-2 flex-1 pr-1 text-xs"></div>
 
       <div class="pt-3 border-t border-slate-800 flex justify-between items-center text-xs">
-        <button type="button" onclick="clearLocalHistory()" class="text-red-400 hover:text-red-300 font-semibold flex items-center gap-1">
-          <i class="fa-solid fa-trash-can"></i> Clear Local Cache
+        <button type="button" onclick="syncFromGoogleSheets(true)" class="text-amber-400 hover:text-amber-300 font-semibold flex items-center gap-1">
+          <i class="fa-solid fa-arrows-rotate"></i> Pull Latest from Sheet
         </button>
         <button type="button" onclick="toggleHistoryModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl">
           Close
@@ -328,7 +333,7 @@
     </div>
   </div>
 
-  <!-- Settings Modal (With PIN Field) -->
+  <!-- Settings Modal -->
   <div id="settingsModal" class="fixed inset-0 bg-black/80 backdrop-blur-md hidden z-50 flex items-center justify-center p-4">
     <div class="glass-card bg-slate-900 border border-slate-700 rounded-3xl p-6 w-full max-w-md space-y-4 shadow-2xl">
       <div class="flex justify-between items-center border-b border-slate-800 pb-3">
@@ -434,10 +439,46 @@
       renderQuickChips();
       renderCategoryButtons();
       refreshTotalsAndHistory();
+
+      // Automatically pull full dataset from Google Sheets on start
+      if (savedWebhook) {
+        syncFromGoogleSheets(false);
+      }
     });
 
     function generateAppSheetId() {
       return Math.random().toString(16).substring(2, 10);
+    }
+
+    // PULL DATA DIRECTLY FROM GOOGLE SHEETS
+    async function syncFromGoogleSheets(showToastMessage = true) {
+      const webhookUrl = localStorage.getItem('gas_webhook_url');
+      const pin = localStorage.getItem('gas_pin') || '7492';
+      if (!webhookUrl) return;
+
+      const syncIcon = document.getElementById('syncIcon');
+      if (syncIcon) syncIcon.classList.add('fa-spin');
+
+      try {
+        const fetchUrl = `${webhookUrl}?pin=${encodeURIComponent(pin)}`;
+        const response = await fetch(fetchUrl);
+        const data = await response.json();
+
+        if (Array.isArray(data)) {
+          // Reverse so newest entries in the sheet appear at the top
+          localExpenses = data.reverse();
+          localStorage.setItem('travel_expenses_log', JSON.stringify(localExpenses));
+          refreshTotalsAndHistory();
+          if (showToastMessage) showToast('Synced with Google Sheet!');
+        } else if (data.status === 'unauthorized') {
+          if (showToastMessage) showToast('Invalid PIN in Settings', true);
+        }
+      } catch (err) {
+        console.warn('Could not pull from sheet (offline or network issue):', err);
+        if (showToastMessage) showToast('Offline: Using local copy', true);
+      } finally {
+        if (syncIcon) syncIcon.classList.remove('fa-spin');
+      }
     }
 
     async function fetchLiveExchangeRate() {
@@ -587,12 +628,12 @@
 
       editingExpenseId = item.id;
       
-      if (item.input_currency === 'CAD') {
-        setInputCurrency('CAD');
-        document.getElementById('costInput').value = item.cost_cad;
-      } else {
+      if (item.cost_php > 0) {
         setInputCurrency('PHP');
         document.getElementById('costInput').value = item.cost_php;
+      } else {
+        setInputCurrency('CAD');
+        document.getElementById('costInput').value = item.cost_cad;
       }
 
       document.getElementById('dateInput').value = item.date;
@@ -690,7 +731,6 @@
         cost_php: costPhp,
         cost_cad: costCad,
         exchange_rate: exchangeRateCadPerPhp,
-        input_currency: currentInputCurrency,
         payment_method: selectedPaymentMethod,
         bucket: selectedBucket,
         category: selectedCategory,
@@ -781,22 +821,12 @@
       });
 
       if (localExpenses.length === 0) {
-        container.innerHTML = '<div class="text-center text-slate-500 py-8">No expenses logged yet.</div>';
+        container.innerHTML = '<div class="text-center text-slate-500 py-8">No expenses found in sheet.</div>';
       }
 
       document.getElementById('heroCadTotal').innerText = `$${totalCad.toFixed(2)}`;
       document.getElementById('heroPhpTotal').innerText = `₱${Math.round(totalPhp).toLocaleString()} PHP`;
       document.getElementById('historyCount').innerText = localExpenses.length;
-    }
-
-    function clearLocalHistory() {
-      if (confirm('Clear local history list on this phone? (Google Sheet records remain safe).')) {
-        localExpenses = [];
-        localStorage.setItem('travel_expenses_log', JSON.stringify([]));
-        refreshTotalsAndHistory();
-        toggleHistoryModal();
-        showToast('Local history cleared');
-      }
     }
 
     function openSettingsModal() {
@@ -831,6 +861,7 @@
       closeSettingsModal();
       showToast('Settings Saved!');
       handleCostInputChange();
+      syncFromGoogleSheets(true);
     }
 
     function showToast(message, isError = false) {
