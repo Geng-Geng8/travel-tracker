@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Vacation Expense Tracker | PHP & CAD</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+    
+    * {
+      -webkit-tap-highlight-color: transparent;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: #0b0f17;
+      color: #f1f5f9;
+    }
+
+    .btn-pill {
+      transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .btn-pill:active {
+      transform: scale(0.96);
+    }
+    
+    .btn-pill-active {
+      background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%) !important;
+      color: #0b0f17 !important;
+      font-weight: 700 !important;
+      border-color: #f59e0b !important;
+      box-shadow: 0 4px 14px 0 rgba(245, 158, 11, 0.35);
+    }
+
+    .pay-btn-active {
+      background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%) !important;
+      color: #ffffff !important;
+      font-weight: 700 !important;
+      border-color: #60a5fa !important;
+      box-shadow: 0 4px 14px 0 rgba(37, 99, 235, 0.4);
+    }
+
+    .glass-card {
+      background: rgba(18, 24, 38, 0.75);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-start p-4 sm:p-6 pb-28">
+
+  <main class="w-full max-w-lg space-y-4">
+
+    <!-- Top Status Bar -->
+    <header class="glass-card rounded-2xl p-4 flex items-center justify-between shadow-xl">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 font-black text-lg">
+          ₱
+        </div>
+        <div>
+          <h1 class="text-base font-bold text-white tracking-tight flex items-center gap-1.5">
+            Travel Spend <span class="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-semibold border border-amber-500/30">PHP ➔ CAD</span>
+          </h1>
+          <p id="rateBadge" class="text-xs text-slate-400 font-medium flex items-center gap-1 mt-0.5">
+            <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            1 CAD ≈ <span id="displayRateText" class="text-slate-200 font-bold">42.50</span> PHP
+          </p>
+        </div>
+      </div>
+      <button type="button" onclick="openSettingsModal()" aria-label="Open Settings" class="w-10 h-10 rounded-xl bg-slate-800/80 hover:bg-slate-700 active:scale-95 border border-slate-700/60 flex items-center justify-center text-slate-300 transition">
+        <i class="fa-solid fa-gear text-sm"></i>
+      </button>
+    </header>
+
+    <!-- Trip Total Hero Card -->
+    <section class="glass-card rounded-3xl p-5 relative overflow-hidden shadow-2xl border border-amber-500/20">
+      <div class="absolute -right-6 -bottom-6 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl pointer-events-none"></div>
+      
+      <div class="flex justify-between items-start mb-2">
+        <span class="text-xs uppercase tracking-wider font-semibold text-slate-400">Total Spent So Far</span>
+        <button onclick="toggleHistoryModal()" class="text-xs text-amber-400 hover:text-amber-300 font-semibold flex items-center gap-1">
+          <i class="fa-solid fa-clock-rotate-left"></i> History (<span id="historyCount">0</span>)
+        </button>
+      </div>
+
+      <div class="flex items-baseline gap-2">
+        <span class="text-3xl sm:text-4xl font-extrabold text-white tracking-tight" id="heroCadTotal">$0.00</span>
+        <span class="text-sm font-bold text-amber-400">CAD</span>
+      </div>
+      
+      <div class="mt-1 text-xs text-slate-400 flex items-center gap-1.5">
+        <span>Source:</span>
+        <span class="font-bold text-slate-200" id="heroPhpTotal">₱0.00 PHP</span>
+      </div>
+    </section>
+
+    <!-- Main Expense Form -->
+    <form id="expenseForm" onsubmit="handleFormSubmit(event)" class="space-y-4">
+
+      <!-- Amount Input -->
+      <div class="glass-card rounded-3xl p-4 sm:p-5 space-y-3">
+        <div class="flex justify-between items-center">
+          <label for="costPhpInput" class="text-xs font-bold uppercase tracking-wider text-slate-400">Enter Amount (PHP ₱)</label>
+          <div class="text-xs text-amber-400 font-semibold flex items-center gap-1">
+            <i class="fa-solid fa-calculator"></i> Auto-Converts
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button type="button" onclick="adjustAmount(-100)" class="w-12 h-14 bg-slate-800 hover:bg-slate-700 border border-slate-700 active:scale-95 rounded-2xl text-xl font-black text-slate-200 flex items-center justify-center transition shadow-md">
+            -
+          </button>
+          
+          <div class="relative flex-1">
+            <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-2xl font-extrabold text-amber-400">₱</span>
+            <input 
+              id="costPhpInput" 
+              type="number" 
+              inputmode="decimal" 
+              step="any" 
+              placeholder="0" 
+              required 
+              oninput="handlePhpInputChange()"
+              class="w-full bg-slate-900/90 border-2 border-slate-700 focus:border-amber-500 rounded-2xl py-3 pl-10 pr-3 text-center text-3xl font-extrabold text-white placeholder-slate-600 focus:outline-none transition"
+            >
+          </div>
+
+          <button type="button" onclick="adjustAmount(100)" class="w-12 h-14 bg-slate-800 hover:bg-slate-700 border border-slate-700 active:scale-95 rounded-2xl text-xl font-black text-slate-200 flex items-center justify-center transition shadow-md">
+            +
+          </button>
+        </div>
+
+        <!-- Quick Increments -->
+        <div class="grid grid-cols-4 gap-1.5 pt-1">
+          <button type="button" onclick="adjustAmount(50)" class="py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 text-xs font-bold text-slate-300 active:scale-95 transition">+₱50</button>
+          <button type="button" onclick="adjustAmount(100)" class="py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 text-xs font-bold text-slate-300 active:scale-95 transition">+₱100</button>
+          <button type="button" onclick="adjustAmount(500)" class="py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 text-xs font-bold text-slate-300 active:scale-95 transition">+₱500</button>
+          <button type="button" onclick="adjustAmount(1000)" class="py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 text-xs font-bold text-slate-300 active:scale-95 transition">+₱1K</button>
+        </div>
+
+        <!-- Converted CAD Preview -->
+        <div class="mt-2 p-3 bg-gradient-to-r from-blue-950/60 to-indigo-950/60 border border-blue-500/30 rounded-2xl flex items-center justify-between">
+          <div class="flex items-center space-x-2">
+            <span class="w-7 h-7 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs font-bold">CAD</span>
+            <span class="text-xs font-medium text-slate-300">Equivalent in Dollars</span>
+          </div>
+          <div class="text-right">
+            <span id="convertedCadPreview" class="text-lg sm:text-xl font-extrabold text-blue-300">$0.00</span>
+            <span class="text-xs text-blue-400/80 font-bold ml-0.5">CAD</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Payment Method -->
+      <div class="glass-card rounded-3xl p-4 sm:p-5 space-y-2">
+        <label class="text-xs font-bold uppercase tracking-wider text-slate-400">Payment Method</label>
+        <div class="grid grid-cols-2 gap-3" id="paymentMethodContainer">
+          <button 
+            type="button" 
+            onclick="selectPaymentMethod('Cash')" 
+            class="pay-btn pay-btn-active py-3.5 px-4 rounded-2xl border border-slate-700 bg-slate-800/80 text-slate-200 text-sm font-semibold flex items-center justify-center gap-2 transition"
+          >
+            <i class="fa-solid fa-money-bill-wave text-emerald-400"></i>
+            <span>Cash (₱)</span>
+          </button>
+          <button 
+            type="button" 
+            onclick="selectPaymentMethod('Credit Card')" 
+            class="pay-btn py-3.5 px-4 rounded-2xl border border-slate-700 bg-slate-800/80 text-slate-200 text-sm font-semibold flex items-center justify-center gap-2 transition"
+          >
+            <i class="fa-solid fa-credit-card text-blue-400"></i>
+            <span>Credit Card</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Buckets -->
+      <div class="glass-card rounded-3xl p-4 sm:p-5 space-y-2">
+        <label class="text-xs font-bold uppercase tracking-wider text-slate-400">Buckets</label>
+        <div class="grid grid-cols-3 gap-2" id="bucketContainer">
+          <button type="button" onclick="selectBucket('Play', this)" class="btn-pill btn-pill-active py-3 px-2 rounded-2xl border border-slate-700 bg-slate-800/90 text-slate-200 text-xs font-semibold flex flex-col items-center justify-center gap-1 transition">
+            <i class="fa-solid fa-umbrella-beach text-sm"></i>
+            <span>Play</span>
+          </button>
+          <button type="button" onclick="selectBucket('Necessity', this)" class="btn-pill py-3 px-2 rounded-2xl border border-slate-700 bg-slate-800/90 text-slate-200 text-xs font-semibold flex flex-col items-center justify-center gap-1 transition">
+            <i class="fa-solid fa-basket-shopping text-sm"></i>
+            <span>Necessity</span>
+          </button>
+          <button type="button" onclick="selectBucket('Small Business', this)" class="btn-pill py-3 px-2 rounded-2xl border border-slate-700 bg-slate-800/90 text-slate-200 text-xs font-semibold flex flex-col items-center justify-center gap-1 transition">
+            <i class="fa-solid fa-briefcase text-sm"></i>
+            <span>Small Biz</span>
+          </button>
+          <button type="button" onclick="selectBucket('Education', this)" class="btn-pill py-3 px-2 rounded-2xl border border-slate-700 bg-slate-800/90 text-slate-200 text-xs font-semibold flex flex-col items-center justify-center gap-1 transition">
+            <i class="fa-solid fa-graduation-cap text-sm"></i>
+            <span>Education</span>
+          </button>
+          <button type="button" onclick="selectBucket('Giving', this)" class="btn-pill py-3 px-2 rounded-2xl border border-slate-700 bg-slate-800/90 text-slate-200 text-xs font-semibold flex flex-col items-center justify-center gap-1 transition col-span-2">
+            <i class="fa-solid fa-hand-holding-heart text-sm"></i>
+            <span>Giving</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Categories -->
+      <div class="glass-card rounded-3xl p-4 sm:p-5 space-y-2">
+        <label class="text-xs font-bold uppercase tracking-wider text-slate-400">Category</label>
+        <div class="grid grid-cols-3 gap-2" id="categoryContainer">
+          <button type="button" onclick="selectCategory('Eating Out', this)" class="btn-pill btn-pill-active py-3 px-2 rounded-2xl border border-slate-700 bg-slate-800/90 text-slate-200 text-xs font-semibold flex flex-col items-center justify-center gap-1 transition">
+            <i class="fa-solid fa-utensils text-sm"></i>
+            <span>Eating Out</span>
+          </button>
+          <button type="button" onclick="selectCategory('Travel', this)" class="btn-pill py-3 px-2 rounded-2xl border border-slate-700 bg-slate-800/90 text-slate-200 text-xs font-semibold flex flex-col items-center justify-center gap-1 transition">
+            <i class="fa-solid fa-plane-departure text-sm"></i>
+            <span>Travel</span>
+          </button>
+          <button type="button" onclick="selectCategory('Fitness', this)" class="btn-pill py-3 px-2 rounded-2xl border border-slate-700 bg-slate-800/90 text-slate-200 text-xs font-semibold flex flex-col items-center justify-center gap-1 transition">
+            <i class="fa-solid fa-dumbbell text-sm"></i>
+            <span>Fitness</span>
+          </button>
+          <button type="button" onclick="selectCategory('Entertainment', this)" class="btn-pill py-3 px-2 rounded-2xl border border-slate-700 bg-slate-800/90 text-slate-200 text-xs font-semibold flex flex-col items-center justify-center gap-1 transition">
+            <i class="fa-solid fa-film text-sm"></i>
+            <span>Fun / Events</span>
+          </button>
+          <button type="button" onclick="selectCategory('Amazon', this)" class="btn-pill py-3 px-2 rounded-2xl border border-slate-700 bg-slate-800/90 text-slate-200 text-xs font-semibold flex flex-col items-center justify-center gap-1 transition">
+            <i class="fa-solid fa-cart-shopping text-sm"></i>
+            <span>Shopping</span>
+          </button>
+          <button type="button" onclick="selectCategory('Clothing', this)" class="btn-pill py-3 px-2 rounded-2xl border border-slate-700 bg-slate-800/90 text-slate-200 text-xs font-semibold flex flex-col items-center justify-center gap-1 transition">
+            <i class="fa-solid fa-shirt text-sm"></i>
+            <span>Clothing</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Item, Date & Notes -->
+      <div class="glass-card rounded-3xl p-4 sm:p-5 space-y-3">
+        <div>
+          <label for="itemInput" class="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-1">Item / Merchant</label>
+          <input 
+            id="itemInput" 
+            type="text" 
+            placeholder="e.g. Jollibee, Grab ride, 7-Eleven" 
+            required 
+            class="w-full bg-slate-900/90 border border-slate-700 rounded-2xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition"
+          >
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label for="dateInput" class="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-1">Date</label>
+            <input 
+              id="dateInput" 
+              type="date" 
+              required 
+              class="w-full bg-slate-900/90 border border-slate-700 rounded-2xl px-3 py-3 text-xs sm:text-sm text-white focus:outline-none focus:border-amber-500 transition"
+            >
+          </div>
+          <div>
+            <label for="notesInput" class="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-1">Notes (Optional)</label>
+            <input 
+              id="notesInput" 
+              type="text" 
+              placeholder="e.g. Split with crew" 
+              class="w-full bg-slate-900/90 border border-slate-700 rounded-2xl px-4 py-3 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition"
+            >
+          </div>
+        </div>
+      </div>
+
+      <!-- Submit & Reset Buttons -->
+      <div class="flex items-center gap-3 pt-1">
+        <button 
+          type="button" 
+          onclick="resetFormInputs()" 
+          class="w-1/3 py-4 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-2xl text-xs sm:text-sm font-bold text-slate-300 active:scale-95 transition flex items-center justify-center gap-1.5"
+        >
+          <i class="fa-solid fa-rotate-left"></i>
+          <span>Clear</span>
+        </button>
+        <button 
+          id="submitBtn" 
+          type="submit" 
+          class="w-2/3 py-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black rounded-2xl text-sm sm:text-base shadow-xl shadow-amber-500/25 active:scale-95 transition flex items-center justify-center gap-2"
+        >
+          <i class="fa-solid fa-cloud-arrow-up text-lg"></i>
+          <span>Save Expense</span>
+        </button>
+      </div>
+
+    </form>
+
+  </main>
+
+  <!-- Settings Modal -->
+  <div id="settingsModal" class="fixed inset-0 bg-black/80 backdrop-blur-md hidden z-50 flex items-center justify-center p-4">
+    <div class="glass-card bg-slate-900 border border-slate-700 rounded-3xl p-6 w-full max-w-md space-y-4 shadow-2xl">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+        <h2 class="text-base font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-sliders text-amber-400"></i> Settings & Sync
+        </h2>
+        <button onclick="closeSettingsModal()" class="text-slate-400 hover:text-white p-1">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="font-bold text-slate-300 block mb-1">Google Apps Script Webhook URL</label>
+          <input 
+            id="settingWebhookUrl" 
+            type="url" 
+            class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white text-xs focus:border-amber-500 focus:outline-none font-mono"
+          >
+          <p class="text-[11px] text-slate-500 mt-1">Direct link to append rows into your Google Sheet.</p>
+        </div>
+
+        <div>
+          <label class="font-bold text-slate-300 block mb-1">Custom PHP/CAD Rate Override (Optional)</label>
+          <div class="flex gap-2">
+            <input 
+              id="settingCustomRate" 
+              type="number" 
+              step="0.0001" 
+              placeholder="e.g. 0.0238" 
+              class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white text-xs focus:border-amber-500 focus:outline-none font-mono"
+            >
+            <button onclick="fetchLiveExchangeRate()" class="px-3 bg-slate-800 border border-slate-700 hover:bg-slate-700 rounded-xl text-amber-400 font-bold whitespace-nowrap">
+              <i class="fa-solid fa-arrows-rotate"></i> Live
+            </button>
+          </div>
+          <p class="text-[11px] text-slate-500 mt-1">Leave blank to use live Google currency feed.</p>
+        </div>
+      </div>
+
+      <div class="pt-2 flex gap-2">
+        <button onclick="saveSettings()" class="w-full py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs transition">
+          Save Configuration
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- History Modal -->
+  <div id="historyModal" class="fixed inset-0 bg-black/80 backdrop-blur-md hidden z-50 flex items-center justify-center p-4">
+    <div class="glass-card bg-slate-900 border border-slate-700 rounded-3xl p-6 w-full max-w-md max-h-[80vh] flex flex-col shadow-2xl">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-3 mb-3">
+        <h2 class="text-base font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-list-check text-amber-400"></i> Trip Expenses Log
+        </h2>
+        <button onclick="toggleHistoryModal()" class="text-slate-400 hover:text-white p-1">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div id="historyListContainer" class="overflow-y-auto space-y-2 flex-1 pr-1 text-xs"></div>
+
+      <div class="pt-3 border-t border-slate-800 flex justify-between items-center text-xs">
+        <button onclick="clearLocalHistory()" class="text-red-400 hover:text-red-300 font-semibold flex items-center gap-1">
+          <i class="fa-solid fa-trash-can"></i> Clear Local Cache
+        </button>
+        <button onclick="toggleHistoryModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification Toast -->
+  <div id="toastNotification" class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 border border-amber-500/50 text-white px-5 py-3 rounded-full text-xs font-bold shadow-2xl flex items-center gap-2 pointer-events-none transition duration-300 opacity-0 -translate-y-2 z-50">
+    <i id="toastIcon" class="fa-solid fa-circle-check text-emerald-400 text-base"></i>
+    <span id="toastMsg">Expense Saved & Synced!</span>
+  </div>
+
+  <script>
+    // HARDCODED WEBHOOK URL
+    const DEFAULT_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbzQ3VhysqxNriorHHpemjctP4fcQXXLWRwdWMugLcMGJq-TIDiuVfF68p-fh-v_4vSk/exec';
+
+    let exchangeRateCadPerPhp = 0.0238; 
+    let selectedPaymentMethod = 'Cash';
+    let selectedBucket = 'Play';
+    let selectedCategory = 'Eating Out';
+    let localExpenses = JSON.parse(localStorage.getItem('trip_expenses') || '[]');
+
+    window.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('dateInput').value = new Date().toISOString().split('T')[0];
+      
+      const savedWebhook = localStorage.getItem('gas_webhook_url') || DEFAULT_WEBHOOK_URL;
+      document.getElementById('settingWebhookUrl').value = savedWebhook;
+      localStorage.setItem('gas_webhook_url', savedWebhook);
+      
+      const savedRate = localStorage.getItem('custom_exchange_rate');
+      if (savedRate) {
+        exchangeRateCadPerPhp = parseFloat(savedRate);
+        document.getElementById('settingCustomRate').value = savedRate;
+        updateRateDisplay();
+      } else {
+        fetchLiveExchangeRate();
+      }
+
+      refreshTotalsAndHistory();
+    });
+
+    async function fetchLiveExchangeRate() {
+      try {
+        const res = await fetch('https://open.er-api.com/v6/latest/PHP');
+        const data = await res.json();
+        if (data && data.rates && data.rates.CAD) {
+          exchangeRateCadPerPhp = data.rates.CAD;
+          updateRateDisplay();
+          handlePhpInputChange();
+        }
+      } catch (err) {
+        console.warn('Could not fetch live rate, using default.', err);
+        updateRateDisplay();
+      }
+    }
+
+    function updateRateDisplay() {
+      const phpPerCad = (1 / exchangeRateCadPerPhp).toFixed(2);
+      document.getElementById('displayRateText').innerText = phpPerCad;
+    }
+
+    function handlePhpInputChange() {
+      const phpVal = parseFloat(document.getElementById('costPhpInput').value) || 0;
+      const cadVal = (phpVal * exchangeRateCadPerPhp).toFixed(2);
+      document.getElementById('convertedCadPreview').innerText = `$${cadVal}`;
+    }
+
+    function adjustAmount(delta) {
+      const input = document.getElementById('costPhpInput');
+      let current = parseFloat(input.value) || 0;
+      let next = Math.max(0, current + delta);
+      input.value = next;
+      handlePhpInputChange();
+    }
+
+    function selectPaymentMethod(method) {
+      selectedPaymentMethod = method;
+      const buttons = document.querySelectorAll('#paymentMethodContainer .pay-btn');
+      buttons.forEach(btn => {
+        if (btn.innerText.includes(method)) {
+          btn.classList.add('pay-btn-active');
+        } else {
+          btn.classList.remove('pay-btn-active');
+        }
+      });
+    }
+
+    function selectBucket(bucketName, element) {
+      selectedBucket = bucketName;
+      document.querySelectorAll('#bucketContainer .btn-pill').forEach(btn => btn.classList.remove('btn-pill-active'));
+      element.classList.add('btn-pill-active');
+    }
+
+    function selectCategory(categoryName, element) {
+      selectedCategory = categoryName;
+      document.querySelectorAll('#categoryContainer .btn-pill').forEach(btn => btn.classList.remove('btn-pill-active'));
+      element.classList.add('btn-pill-active');
+    }
+
+    function resetFormInputs() {
+      document.getElementById('costPhpInput').value = '';
+      document.getElementById('itemInput').value = '';
+      document.getElementById('notesInput').value = '';
+      document.getElementById('dateInput').value = new Date().toISOString().split('T')[0];
+      handlePhpInputChange();
+    }
+
+    async function handleFormSubmit(e) {
+      e.preventDefault();
+      
+      const costPhp = parseFloat(document.getElementById('costPhpInput').value);
+      if (!costPhp || costPhp <= 0) {
+        showToast('Please enter an amount greater than 0', true);
+        return;
+      }
+
+      const costCad = parseFloat((costPhp * exchangeRateCadPerPhp).toFixed(2));
+      const date = document.getElementById('dateInput').value;
+      const item = document.getElementById('itemInput').value.trim();
+      const notes = document.getElementById('notesInput').value.trim();
+
+      const expenseRecord = {
+        id: Date.now(),
+        date: date,
+        cost_php: costPhp,
+        cost_cad: costCad,
+        exchange_rate: exchangeRateCadPerPhp,
+        payment_method: selectedPaymentMethod,
+        bucket: selectedBucket,
+        category: selectedCategory,
+        item: item,
+        notes: notes
+      };
+
+      localExpenses.unshift(expenseRecord);
+      localStorage.setItem('trip_expenses', JSON.stringify(localExpenses));
+      refreshTotalsAndHistory();
+
+      const webhookUrl = localStorage.getItem('gas_webhook_url') || DEFAULT_WEBHOOK_URL;
+      const submitBtn = document.getElementById('submitBtn');
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-lg"></i><span>Syncing...</span>';
+
+      try {
+        await fetch(webhookUrl, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(expenseRecord)
+        });
+        showToast('Saved & Synced to Google Sheets!');
+      } catch (err) {
+        console.error(err);
+        showToast('Saved offline (Sync failed)', true);
+      }
+
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up text-lg"></i><span>Save Expense</span>';
+      resetFormInputs();
+    }
+
+    function refreshTotalsAndHistory() {
+      let totalPhp = 0;
+      let totalCad = 0;
+
+      const container = document.getElementById('historyListContainer');
+      container.innerHTML = '';
+
+      localExpenses.forEach(item => {
+        totalPhp += (item.cost_php || 0);
+        totalCad += (item.cost_cad || 0);
+
+        const card = document.createElement('div');
+        card.className = 'p-3 bg-slate-800/80 rounded-2xl border border-slate-700/60 flex justify-between items-center';
+        card.innerHTML = `
+          <div>
+            <div class="font-bold text-white text-sm">${escapeHtml(item.item)}</div>
+            <div class="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
+              <span>${item.date}</span> • 
+              <span class="text-amber-400 font-medium">${item.category}</span> • 
+              <span class="text-blue-400 font-medium">${item.payment_method}</span>
+            </div>
+            ${item.notes ? `<div class="text-[10px] text-slate-500 italic mt-0.5">"${escapeHtml(item.notes)}"</div>` : ''}
+          </div>
+          <div class="text-right">
+            <div class="font-extrabold text-blue-300 text-sm">$${item.cost_cad.toFixed(2)} CAD</div>
+            <div class="text-[11px] font-semibold text-amber-400">₱${item.cost_php.toLocaleString()} PHP</div>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+
+      if (localExpenses.length === 0) {
+        container.innerHTML = '<div class="text-center text-slate-500 py-8">No expenses logged yet.</div>';
+      }
+
+      document.getElementById('heroCadTotal').innerText = `$${totalCad.toFixed(2)}`;
+      document.getElementById('heroPhpTotal').innerText = `₱${totalPhp.toLocaleString()} PHP`;
+      document.getElementById('historyCount').innerText = localExpenses.length;
+    }
+
+    function clearLocalHistory() {
+      if (confirm('Clear local history list on this device? (Entries in your Google Sheet remain untouched).')) {
+        localExpenses = [];
+        localStorage.setItem('trip_expenses', JSON.stringify([]));
+        refreshTotalsAndHistory();
+        toggleHistoryModal();
+        showToast('Local history cleared');
+      }
+    }
+
+    function openSettingsModal() {
+      document.getElementById('settingsModal').classList.remove('hidden');
+    }
+
+    function closeSettingsModal() {
+      document.getElementById('settingsModal').classList.add('hidden');
+    }
+
+    function toggleHistoryModal() {
+      document.getElementById('historyModal').classList.toggle('hidden');
+    }
+
+    function saveSettings() {
+      const url = document.getElementById('settingWebhookUrl').value.trim();
+      const customRate = document.getElementById('settingCustomRate').value.trim();
+
+      if (url) {
+        localStorage.setItem('gas_webhook_url', url);
+      }
+
+      if (customRate && !isNaN(customRate)) {
+        exchangeRateCadPerPhp = parseFloat(customRate);
+        localStorage.setItem('custom_exchange_rate', customRate);
+        updateRateDisplay();
+      } else {
+        localStorage.removeItem('custom_exchange_rate');
+        fetchLiveExchangeRate();
+      }
+
+      closeSettingsModal();
+      showToast('Settings Saved!');
+      handlePhpInputChange();
+    }
+
+    function showToast(message, isError = false) {
+      const toast = document.getElementById('toastNotification');
+      const msgEl = document.getElementById('toastMsg');
+      const iconEl = document.getElementById('toastIcon');
+
+      msgEl.innerText = message;
+      if (isError) {
+        iconEl.className = 'fa-solid fa-triangle-exclamation text-amber-400 text-base';
+      } else {
+        iconEl.className = 'fa-solid fa-circle-check text-emerald-400 text-base';
+      }
+
+      toast.classList.remove('opacity-0', '-translate-y-2');
+      toast.classList.add('opacity-100', 'translate-y-0');
+
+      setTimeout(() => {
+        toast.classList.remove('opacity-100', 'translate-y-0');
+        toast.classList.add('opacity-0', '-translate-y-2');
+      }, 2500);
+    }
+
+    function escapeHtml(text) {
+      if (!text) return '';
+      return text.replace(/[&<>"']/g, function(m) {
+        return {
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#039;'
+        }[m];
+      });
+    }
+  </script>
+</body>
+</html>
