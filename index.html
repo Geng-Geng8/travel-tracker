@@ -78,17 +78,17 @@
           <div class="flex items-center gap-2">
             <h1 class="text-sm sm:text-base font-extrabold text-white tracking-tight">Travel Tracker</h1>
             <span class="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 font-bold border border-amber-500/30 uppercase tracking-wide">
-              PHP ⇄ CAD
+              Live Sheet
             </span>
           </div>
           <p id="rateBadge" class="text-xs text-slate-400 font-medium flex items-center gap-1.5 mt-0.5">
-            <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span id="liveStatusDot" class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
             1 CAD ≈ <span id="displayRateText" class="text-slate-200 font-bold">44.00</span> PHP
           </p>
         </div>
       </div>
       <div class="flex items-center gap-2">
-        <button type="button" onclick="syncFromGoogleSheets(true)" title="Sync Sheet" class="w-10 h-10 rounded-xl bg-slate-800/90 hover:bg-slate-700 active:scale-95 border border-slate-700/80 flex items-center justify-center text-amber-400 transition shadow">
+        <button type="button" onclick="syncFromGoogleSheets(true)" title="Force Refresh Sheet" class="w-10 h-10 rounded-xl bg-slate-800/90 hover:bg-slate-700 active:scale-95 border border-slate-700/80 flex items-center justify-center text-amber-400 transition shadow">
           <i id="syncIcon" class="fa-solid fa-rotate text-sm"></i>
         </button>
         <button type="button" onclick="openSettingsModal()" aria-label="Open Settings" class="w-10 h-10 rounded-xl bg-slate-800/90 hover:bg-slate-700 active:scale-95 border border-slate-700/80 flex items-center justify-center text-slate-300 transition shadow">
@@ -97,12 +97,12 @@
       </div>
     </header>
 
-    <!-- Total Spending Card -->
+    <!-- Total Spending Card (Driven Exclusively by Sheet) -->
     <section class="glass-card rounded-3xl p-5 relative overflow-hidden shadow-2xl border border-amber-500/20">
       <div class="absolute -right-6 -bottom-6 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl pointer-events-none"></div>
       
       <div class="flex justify-between items-start mb-2">
-        <span class="text-xs uppercase tracking-wider font-semibold text-slate-400">Total Spent (From Sheet)</span>
+        <span class="text-xs uppercase tracking-wider font-semibold text-slate-400">Total Spent (Master Sheet)</span>
         <button type="button" onclick="toggleHistoryModal()" class="text-xs text-amber-400 hover:text-amber-300 font-semibold flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-xl transition active:scale-95">
           <i class="fa-solid fa-clock-rotate-left"></i> History & Edit (<span id="historyCount">0</span>)
         </button>
@@ -135,7 +135,6 @@
 
       <!-- Cost Input Card -->
       <div class="glass-card rounded-3xl p-4 sm:p-5 space-y-3">
-        
         <div class="flex justify-between items-center pb-1">
           <label class="text-xs font-bold uppercase tracking-wider text-slate-400">Select Input Currency</label>
           <div class="bg-slate-900 border border-slate-700/90 p-1 rounded-xl flex gap-1 shadow-inner">
@@ -173,7 +172,7 @@
           </button>
         </div>
 
-        <!-- Quick Increments -->
+        <!-- Quick Chips -->
         <div id="quickChipsContainer" class="grid grid-cols-4 gap-1.5 pt-1"></div>
 
         <!-- Converted Preview -->
@@ -238,7 +237,7 @@
         </div>
       </div>
 
-      <!-- Dynamic Categories -->
+      <!-- Categories -->
       <div class="glass-card rounded-3xl p-4 sm:p-5 space-y-2">
         <div class="flex justify-between items-center">
           <label class="text-xs font-bold uppercase tracking-wider text-slate-400">Category</label>
@@ -311,7 +310,7 @@
     <div class="glass-card bg-slate-900 border border-slate-700 rounded-3xl p-5 w-full max-w-md max-h-[85vh] flex flex-col shadow-2xl">
       <div class="flex justify-between items-center border-b border-slate-800 pb-3 mb-3">
         <h2 class="text-base font-bold text-white flex items-center gap-2">
-          <i class="fa-solid fa-list-check text-amber-400"></i> Travel Expenses Log
+          <i class="fa-solid fa-list-check text-amber-400"></i> Master Sheet Log
         </h2>
         <button type="button" onclick="toggleHistoryModal()" class="text-slate-400 hover:text-white p-1">
           <i class="fa-solid fa-xmark text-lg"></i>
@@ -324,7 +323,7 @@
 
       <div class="pt-3 border-t border-slate-800 flex justify-between items-center text-xs">
         <button type="button" onclick="syncFromGoogleSheets(true)" class="text-amber-400 hover:text-amber-300 font-semibold flex items-center gap-1">
-          <i class="fa-solid fa-arrows-rotate"></i> Pull Latest from Sheet
+          <i class="fa-solid fa-arrows-rotate"></i> Pull Latest Sheet
         </button>
         <button type="button" onclick="toggleHistoryModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl">
           Close
@@ -354,7 +353,7 @@
             placeholder="https://script.google.com/macros/s/.../exec"
             class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white text-xs focus:border-amber-500 focus:outline-none font-mono"
           >
-          <p class="text-[11px] text-slate-500 mt-1">Direct link to your Travel Expenses webhook.</p>
+          <p class="text-[11px] text-slate-500 mt-1">Direct link to your Expenses webhook.</p>
         </div>
 
         <div>
@@ -366,7 +365,7 @@
             placeholder="7492"
             class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white text-xs focus:border-amber-500 focus:outline-none font-mono"
           >
-          <p class="text-[11px] text-slate-500 mt-1">Must match the SECRET_PIN in your Apps Script.</p>
+          <p class="text-[11px] text-slate-500 mt-1">Must match the SECRET_PIN in Apps Script.</p>
         </div>
 
         <div>
@@ -383,7 +382,7 @@
               <i class="fa-solid fa-arrows-rotate"></i> Live
             </button>
           </div>
-          <p class="text-[11px] text-slate-500 mt-1">Leave blank to use live Google currency feed.</p>
+          <p class="text-[11px] text-slate-500 mt-1">Leave blank to use live open rate feed.</p>
         </div>
       </div>
 
@@ -416,7 +415,7 @@
     let selectedBucket = 'Play';
     let selectedCategory = 'Eating Out';
     let editingExpenseId = null;
-    let localExpenses = JSON.parse(localStorage.getItem('travel_expenses_log') || '[]');
+    let masterExpenses = JSON.parse(localStorage.getItem('travel_expenses_log') || '[]');
 
     window.addEventListener('DOMContentLoaded', () => {
       document.getElementById('dateInput').value = new Date().toISOString().split('T')[0];
@@ -438,15 +437,30 @@
 
       renderQuickChips();
       renderCategoryButtons();
-      refreshTotalsAndHistory();
+      renderTotalsAndList();
 
-      // Automatically pull full dataset from Google Sheets on start
+      // Initial direct pull from Sheet
       if (savedWebhook) {
         syncFromGoogleSheets(false);
       }
     });
 
-    function generateAppSheetId() {
+    // AUTO-SYNC ON APP RESUME / TAB FOCUS ACROSS PHONES
+    window.addEventListener('focus', () => syncFromGoogleSheets(false));
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        syncFromGoogleSheets(false);
+      }
+    });
+
+    // Periodic 30-second live polling
+    setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        syncFromGoogleSheets(false);
+      }
+    }, 30000);
+
+    function generateId() {
       return Math.random().toString(16).substring(2, 10);
     }
 
@@ -460,22 +474,21 @@
       if (syncIcon) syncIcon.classList.add('fa-spin');
 
       try {
-        const fetchUrl = `${webhookUrl}?pin=${encodeURIComponent(pin)}`;
+        const fetchUrl = `${webhookUrl}?pin=${encodeURIComponent(pin)}&_t=${Date.now()}`;
         const response = await fetch(fetchUrl);
         const data = await response.json();
 
         if (Array.isArray(data)) {
-          // Reverse so newest entries in the sheet appear at the top
-          localExpenses = data.reverse();
-          localStorage.setItem('travel_expenses_log', JSON.stringify(localExpenses));
-          refreshTotalsAndHistory();
+          masterExpenses = data.reverse();
+          localStorage.setItem('travel_expenses_log', JSON.stringify(masterExpenses));
+          renderTotalsAndList();
           if (showToastMessage) showToast('Synced with Google Sheet!');
         } else if (data.status === 'unauthorized') {
           if (showToastMessage) showToast('Invalid PIN in Settings', true);
         }
       } catch (err) {
-        console.warn('Could not pull from sheet (offline or network issue):', err);
-        if (showToastMessage) showToast('Offline: Using local copy', true);
+        console.warn('Could not sync:', err);
+        if (showToastMessage) showToast('Using cached offline data', true);
       } finally {
         if (syncIcon) syncIcon.classList.remove('fa-spin');
       }
@@ -623,7 +636,7 @@
     }
 
     function startEditExpense(id) {
-      const item = localExpenses.find(e => e.id.toString() === id.toString());
+      const item = masterExpenses.find(e => e.id.toString() === id.toString());
       if (!item) return;
 
       editingExpenseId = item.id;
@@ -662,11 +675,7 @@
     }
 
     async function deleteSingleExpense(id) {
-      if (!confirm('Delete this expense? It will be removed from your app and Google Sheet.')) return;
-
-      localExpenses = localExpenses.filter(item => item.id.toString() !== id.toString());
-      localStorage.setItem('travel_expenses_log', JSON.stringify(localExpenses));
-      refreshTotalsAndHistory();
+      if (!confirm('Delete this expense? It will be removed immediately from Google Sheets.')) return;
 
       if (editingExpenseId && editingExpenseId.toString() === id.toString()) {
         cancelEditMode();
@@ -685,10 +694,11 @@
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify({ action: 'delete', id: id, pin: pin })
           });
-          showToast('Deleted permanently!');
+          // Wait 800ms for sheet commit, then pull updated truth
+          setTimeout(() => syncFromGoogleSheets(true), 800);
         } catch (err) {
           console.error(err);
-          showToast('Removed locally (Sync error)', true);
+          showToast('Sync error', true);
         }
       }
     }
@@ -726,7 +736,7 @@
       const pin = localStorage.getItem('gas_pin') || '7492';
 
       const expenseRecord = {
-        id: editingExpenseId ? editingExpenseId : generateAppSheetId(),
+        id: editingExpenseId ? editingExpenseId : generateId(),
         date: date,
         cost_php: costPhp,
         cost_cad: costCad,
@@ -738,19 +748,6 @@
         notes: notes,
         pin: pin
       };
-
-      if (editingExpenseId) {
-        const index = localExpenses.findIndex(e => e.id.toString() === editingExpenseId.toString());
-        if (index !== -1) localExpenses[index] = expenseRecord;
-        editingExpenseId = null;
-        document.getElementById('editingBanner').classList.add('hidden');
-        document.getElementById('submitBtnText').innerText = 'Save Expense';
-      } else {
-        localExpenses.unshift(expenseRecord);
-      }
-
-      localStorage.setItem('travel_expenses_log', JSON.stringify(localExpenses));
-      refreshTotalsAndHistory();
 
       const webhookUrl = localStorage.getItem('gas_webhook_url');
       const submitBtn = document.getElementById('submitBtn');
@@ -765,28 +762,36 @@
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify(expenseRecord)
           });
-          showToast('Saved to Google Sheet!');
+          showToast('Saved! Syncing Sheet...');
+          
+          if (editingExpenseId) {
+            cancelEditMode();
+          } else {
+            resetFormInputs();
+          }
+
+          // Fetch the updated master list from Google Sheets
+          setTimeout(() => syncFromGoogleSheets(true), 800);
         } catch (err) {
           console.error(err);
-          showToast('Saved offline (Sync failed)', true);
+          showToast('Failed to save to Google Sheets', true);
         }
       } else {
-        showToast('Saved locally (Add webhook in Settings)');
+        showToast('Add Webhook URL in Settings', true);
       }
 
       submitBtn.disabled = false;
       submitBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up text-lg"></i><span id="submitBtnText">Save Expense</span>';
-      resetFormInputs();
     }
 
-    function refreshTotalsAndHistory() {
+    function renderTotalsAndList() {
       let totalPhp = 0;
       let totalCad = 0;
 
       const container = document.getElementById('historyListContainer');
       container.innerHTML = '';
 
-      localExpenses.forEach(item => {
+      masterExpenses.forEach(item => {
         totalPhp += (item.cost_php || 0);
         totalCad += (item.cost_cad || 0);
 
@@ -820,13 +825,13 @@
         container.appendChild(card);
       });
 
-      if (localExpenses.length === 0) {
+      if (masterExpenses.length === 0) {
         container.innerHTML = '<div class="text-center text-slate-500 py-8">No expenses found in sheet.</div>';
       }
 
       document.getElementById('heroCadTotal').innerText = `$${totalCad.toFixed(2)}`;
       document.getElementById('heroPhpTotal').innerText = `₱${Math.round(totalPhp).toLocaleString()} PHP`;
-      document.getElementById('historyCount').innerText = localExpenses.length;
+      document.getElementById('historyCount').innerText = masterExpenses.length;
     }
 
     function openSettingsModal() {
