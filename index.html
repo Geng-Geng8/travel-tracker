@@ -3,19 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Travel Expense Tracker | Offline-Ready</title>
+  <title>PHP & CAD Travel Tracker</title>
 
-  <!-- CUSTOM ICONS START (Lines 6-12) -->
+  <!-- App Icons & PWA Metadata -->
   <link rel="icon" type="image/png" href="1-CAD-PHP-AppIcon.png">
   <link rel="apple-touch-icon" href="1-CAD-PHP-AppIcon.png">
   <meta name="theme-color" content="#0b0f17">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Travel Tracker">
-  <!-- CUSTOM ICONS END -->
 
+  <!-- Tailwind CSS & FontAwesome -->
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
     
@@ -81,8 +82,9 @@
     <!-- Header -->
     <header class="glass-card rounded-2xl p-3.5 px-4 flex items-center justify-between shadow-xl">
       <div class="flex items-center space-x-3">
-        <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-600/10 border border-amber-500/40 flex items-center justify-center text-amber-400 shadow-inner">
-          <i class="fa-solid fa-right-left text-base"></i>
+        <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-600/10 border border-amber-500/40 flex items-center justify-center text-amber-400 shadow-inner overflow-hidden">
+          <img src="1-CAD-PHP-AppIcon.png" alt="App Icon" class="w-8 h-8 object-contain" onerror="this.style.display='none'; document.getElementById('fallbackHeaderIcon').style.display='block';">
+          <i id="fallbackHeaderIcon" class="fa-solid fa-right-left text-base hidden"></i>
         </div>
         <div>
           <div class="flex items-center gap-2">
@@ -157,7 +159,7 @@
           </div>
         </div>
 
-        <!-- Numeric Input -->
+        <!-- Stepper & Numerical Input -->
         <div class="flex items-center gap-2">
           <button type="button" onclick="adjustAmount(-1)" class="w-12 h-14 bg-slate-800 hover:bg-slate-700 border border-slate-700 active:scale-95 rounded-2xl text-xl font-black text-slate-200 flex items-center justify-center transition shadow-md">
             -
@@ -182,10 +184,10 @@
           </button>
         </div>
 
-        <!-- Quick Increments -->
+        <!-- Quick Chips -->
         <div id="quickChipsContainer" class="grid grid-cols-4 gap-1.5 pt-1"></div>
 
-        <!-- Converted Preview -->
+        <!-- Live Converted Preview -->
         <div class="mt-2 p-3 bg-gradient-to-r from-blue-950/60 to-indigo-950/60 border border-blue-500/30 rounded-2xl flex items-center justify-between">
           <div class="flex items-center space-x-2">
             <span id="previewBadge" class="w-8 h-7 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs font-bold">CAD</span>
@@ -263,7 +265,7 @@
           <input 
             id="itemInput" 
             type="text" 
-            placeholder="e.g. Island Ferry, Hotel, Dinner" 
+            placeholder="e.g. Island Ferry, Hotel, Dinner, Flight" 
             required 
             class="w-full bg-slate-900/90 border border-slate-700 rounded-2xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition"
           >
@@ -284,7 +286,7 @@
             <input 
               id="notesInput" 
               type="text" 
-              placeholder="e.g. Cash payment" 
+              placeholder="e.g. Split with crew" 
               class="w-full bg-slate-900/90 border border-slate-700 rounded-2xl px-4 py-3 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition"
             >
           </div>
@@ -422,7 +424,7 @@
     let editingExpenseId = null;
     let isSyncing = false;
 
-    // LOCAL STORAGE CACHES
+    // PERSISTENT LOCAL STORAGE
     let masterExpenses = JSON.parse(localStorage.getItem('travel_expenses_log') || '[]');
     let syncQueue = JSON.parse(localStorage.getItem('sync_queue') || '[]');
 
@@ -449,7 +451,7 @@
       renderTotalsAndList();
       updateSyncBadge();
 
-      // Attempt flushing sync queue & pulling sheet
+      // Flush queue and pull from sheet
       flushQueueAndSync(false);
     });
 
@@ -484,7 +486,7 @@
       }
     }
 
-    // FLUSH PENDING QUEUE THEN PULL SHEET
+    // FLUSH QUEUE & RECONCILE WITH GOOGLE SHEETS
     async function flushQueueAndSync(showToastMessage = false) {
       if (isSyncing) return;
       isSyncing = true;
@@ -495,7 +497,7 @@
       if (syncIcon) syncIcon.classList.add('fa-spin');
 
       try {
-        // Step 1: Push any pending items in queue
+        // Step 1: Send pending mutations first
         if (webhookUrl && syncQueue.length > 0 && navigator.onLine) {
           const queueToProcess = [...syncQueue];
           for (const item of queueToProcess) {
@@ -506,14 +508,13 @@
               headers: { 'Content-Type': 'text/plain;charset=utf-8' },
               body: JSON.stringify(item)
             });
-            // Remove sent item from queue
             syncQueue = syncQueue.filter(q => q.id !== item.id || (item.action && q.action !== item.action));
             localStorage.setItem('sync_queue', JSON.stringify(syncQueue));
             updateSyncBadge();
           }
         }
 
-        // Step 2: If queue is completely cleared, fetch fresh truth from Google Sheet
+        // Step 2: Pull latest dataset from Google Sheets
         if (webhookUrl && syncQueue.length === 0 && navigator.onLine) {
           const fetchUrl = `${webhookUrl}?pin=${encodeURIComponent(pin)}&_t=${Date.now()}`;
           const response = await fetch(fetchUrl);
@@ -529,7 +530,7 @@
           showToast(syncQueue.length > 0 ? `${syncQueue.length} saved offline (Will sync with Wi-Fi)` : 'Offline mode active');
         }
       } catch (err) {
-        console.warn('Sync failed (device offline):', err);
+        console.warn('Sync failed (offline):', err);
         if (showToastMessage) showToast('Saved locally on phone', true);
       } finally {
         if (syncIcon) syncIcon.classList.remove('fa-spin');
@@ -719,7 +720,6 @@
       resetFormInputs();
     }
 
-    // OFFLINE-READY DELETE
     function deleteSingleExpense(id) {
       if (!confirm('Delete this expense?')) return;
 
@@ -727,18 +727,17 @@
         cancelEditMode();
       }
 
-      // 1. Delete from local cache
+      // Local optimistic delete
       masterExpenses = masterExpenses.filter(item => item.id.toString() !== id.toString());
       localStorage.setItem('travel_expenses_log', JSON.stringify(masterExpenses));
       renderTotalsAndList();
 
-      // 2. Add to sync queue
+      // Push delete action to offline queue
       syncQueue.push({ action: 'delete', id: id });
       localStorage.setItem('sync_queue', JSON.stringify(syncQueue));
       updateSyncBadge();
       showToast('Deleted');
 
-      // 3. Attempt flush
       flushQueueAndSync(false);
     }
 
@@ -751,7 +750,6 @@
       if (editingExpenseId) cancelEditMode();
     }
 
-    // OFFLINE-READY SUBMIT
     function handleFormSubmit(e) {
       e.preventDefault();
       
@@ -787,7 +785,7 @@
         notes: notes
       };
 
-      // 1. Instant local state update
+      // Optimistic local state update
       if (editingExpenseId) {
         const index = masterExpenses.findIndex(e => e.id.toString() === editingExpenseId.toString());
         if (index !== -1) masterExpenses[index] = expenseRecord;
@@ -800,15 +798,13 @@
       renderTotalsAndList();
       resetFormInputs();
 
-      // 2. Queue for sheet synchronization
+      // Push save action to offline queue
       syncQueue = syncQueue.filter(q => q.id !== expenseRecord.id);
       syncQueue.push(expenseRecord);
       localStorage.setItem('sync_queue', JSON.stringify(syncQueue));
       updateSyncBadge();
 
       showToast(navigator.onLine ? 'Saved Instantly!' : 'Saved to Phone (Offline)');
-
-      // 3. Attempt immediate flush if online
       flushQueueAndSync(false);
     }
 
