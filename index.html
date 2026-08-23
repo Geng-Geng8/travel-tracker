@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Travel Expense Tracker | PHP & CAD</title>
+  <title>Travel Expense Tracker | Offline-Ready</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
@@ -21,11 +21,11 @@
     }
 
     .btn-pill {
-      transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: all 0.12s cubic-bezier(0.4, 0, 0.2, 1);
     }
     
     .btn-pill:active {
-      transform: scale(0.96);
+      transform: scale(0.95);
     }
     
     .btn-pill-active {
@@ -77,18 +77,18 @@
         <div>
           <div class="flex items-center gap-2">
             <h1 class="text-sm sm:text-base font-extrabold text-white tracking-tight">Travel Tracker</h1>
-            <span class="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 font-bold border border-amber-500/30 uppercase tracking-wide">
-              Live Sheet
+            <span id="syncBadge" class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 font-bold border border-emerald-500/30 uppercase tracking-wide">
+              Synced
             </span>
           </div>
           <p id="rateBadge" class="text-xs text-slate-400 font-medium flex items-center gap-1.5 mt-0.5">
-            <span id="liveStatusDot" class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span id="onlineDot" class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
             1 CAD ≈ <span id="displayRateText" class="text-slate-200 font-bold">44.00</span> PHP
           </p>
         </div>
       </div>
       <div class="flex items-center gap-2">
-        <button type="button" onclick="syncFromGoogleSheets(true)" title="Force Refresh Sheet" class="w-10 h-10 rounded-xl bg-slate-800/90 hover:bg-slate-700 active:scale-95 border border-slate-700/80 flex items-center justify-center text-amber-400 transition shadow">
+        <button type="button" onclick="flushQueueAndSync(true)" title="Force Sync" class="w-10 h-10 rounded-xl bg-slate-800/90 hover:bg-slate-700 active:scale-95 border border-slate-700/80 flex items-center justify-center text-amber-400 transition shadow">
           <i id="syncIcon" class="fa-solid fa-rotate text-sm"></i>
         </button>
         <button type="button" onclick="openSettingsModal()" aria-label="Open Settings" class="w-10 h-10 rounded-xl bg-slate-800/90 hover:bg-slate-700 active:scale-95 border border-slate-700/80 flex items-center justify-center text-slate-300 transition shadow">
@@ -97,12 +97,12 @@
       </div>
     </header>
 
-    <!-- Total Spending Card (Driven Exclusively by Sheet) -->
+    <!-- Total Spending Card -->
     <section class="glass-card rounded-3xl p-5 relative overflow-hidden shadow-2xl border border-amber-500/20">
       <div class="absolute -right-6 -bottom-6 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl pointer-events-none"></div>
       
       <div class="flex justify-between items-start mb-2">
-        <span class="text-xs uppercase tracking-wider font-semibold text-slate-400">Total Spent (Master Sheet)</span>
+        <span class="text-xs uppercase tracking-wider font-semibold text-slate-400">Total Spent</span>
         <button type="button" onclick="toggleHistoryModal()" class="text-xs text-amber-400 hover:text-amber-300 font-semibold flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-xl transition active:scale-95">
           <i class="fa-solid fa-clock-rotate-left"></i> History & Edit (<span id="historyCount">0</span>)
         </button>
@@ -172,7 +172,7 @@
           </button>
         </div>
 
-        <!-- Quick Chips -->
+        <!-- Quick Increments -->
         <div id="quickChipsContainer" class="grid grid-cols-4 gap-1.5 pt-1"></div>
 
         <!-- Converted Preview -->
@@ -253,7 +253,7 @@
           <input 
             id="itemInput" 
             type="text" 
-            placeholder="e.g. Grab, Hotel, Jollibee, Flight" 
+            placeholder="e.g. Island Ferry, Hotel, Dinner" 
             required 
             class="w-full bg-slate-900/90 border border-slate-700 rounded-2xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition"
           >
@@ -274,7 +274,7 @@
             <input 
               id="notesInput" 
               type="text" 
-              placeholder="e.g. Split with crew" 
+              placeholder="e.g. Cash payment" 
               class="w-full bg-slate-900/90 border border-slate-700 rounded-2xl px-4 py-3 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition"
             >
           </div>
@@ -296,7 +296,7 @@
           type="submit" 
           class="w-2/3 py-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black rounded-2xl text-sm sm:text-base shadow-xl shadow-amber-500/25 active:scale-95 transition flex items-center justify-center gap-2"
         >
-          <i class="fa-solid fa-cloud-arrow-up text-lg"></i>
+          <i class="fa-solid fa-bolt text-lg"></i>
           <span id="submitBtnText">Save Expense</span>
         </button>
       </div>
@@ -310,20 +310,18 @@
     <div class="glass-card bg-slate-900 border border-slate-700 rounded-3xl p-5 w-full max-w-md max-h-[85vh] flex flex-col shadow-2xl">
       <div class="flex justify-between items-center border-b border-slate-800 pb-3 mb-3">
         <h2 class="text-base font-bold text-white flex items-center gap-2">
-          <i class="fa-solid fa-list-check text-amber-400"></i> Master Sheet Log
+          <i class="fa-solid fa-list-check text-amber-400"></i> Expenses History
         </h2>
         <button type="button" onclick="toggleHistoryModal()" class="text-slate-400 hover:text-white p-1">
           <i class="fa-solid fa-xmark text-lg"></i>
         </button>
       </div>
 
-      <p class="text-[11px] text-slate-400 mb-2">Tap ✏️ to edit in form, or 🗑️ to delete from Google Sheets.</p>
-
       <div id="historyListContainer" class="overflow-y-auto space-y-2 flex-1 pr-1 text-xs"></div>
 
       <div class="pt-3 border-t border-slate-800 flex justify-between items-center text-xs">
-        <button type="button" onclick="syncFromGoogleSheets(true)" class="text-amber-400 hover:text-amber-300 font-semibold flex items-center gap-1">
-          <i class="fa-solid fa-arrows-rotate"></i> Pull Latest Sheet
+        <button type="button" onclick="flushQueueAndSync(true)" class="text-amber-400 hover:text-amber-300 font-semibold flex items-center gap-1">
+          <i class="fa-solid fa-arrows-rotate"></i> Sync Pending & Pull
         </button>
         <button type="button" onclick="toggleHistoryModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl">
           Close
@@ -353,7 +351,6 @@
             placeholder="https://script.google.com/macros/s/.../exec"
             class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white text-xs focus:border-amber-500 focus:outline-none font-mono"
           >
-          <p class="text-[11px] text-slate-500 mt-1">Direct link to your Expenses webhook.</p>
         </div>
 
         <div>
@@ -365,7 +362,6 @@
             placeholder="7492"
             class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white text-xs focus:border-amber-500 focus:outline-none font-mono"
           >
-          <p class="text-[11px] text-slate-500 mt-1">Must match the SECRET_PIN in Apps Script.</p>
         </div>
 
         <div>
@@ -382,7 +378,6 @@
               <i class="fa-solid fa-arrows-rotate"></i> Live
             </button>
           </div>
-          <p class="text-[11px] text-slate-500 mt-1">Leave blank to use live open rate feed.</p>
         </div>
       </div>
 
@@ -394,10 +389,10 @@
     </div>
   </div>
 
-  <!-- Notification Toast -->
-  <div id="toastNotification" class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 border border-amber-500/50 text-white px-5 py-3 rounded-full text-xs font-bold shadow-2xl flex items-center gap-2 pointer-events-none transition duration-300 opacity-0 -translate-y-2 z-50">
+  <!-- Toast Notification -->
+  <div id="toastNotification" class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/95 backdrop-blur-md border border-amber-500/50 text-white px-5 py-3 rounded-full text-xs font-bold shadow-2xl flex items-center gap-2 pointer-events-none transition-all duration-200 opacity-0 -translate-y-2 z-50">
     <i id="toastIcon" class="fa-solid fa-circle-check text-emerald-400 text-base"></i>
-    <span id="toastMsg">Expense Saved & Synced!</span>
+    <span id="toastMsg">Saved Instantly!</span>
   </div>
 
   <script>
@@ -415,7 +410,11 @@
     let selectedBucket = 'Play';
     let selectedCategory = 'Eating Out';
     let editingExpenseId = null;
+    let isSyncing = false;
+
+    // LOCAL STORAGE CACHES
     let masterExpenses = JSON.parse(localStorage.getItem('travel_expenses_log') || '[]');
+    let syncQueue = JSON.parse(localStorage.getItem('sync_queue') || '[]');
 
     window.addEventListener('DOMContentLoaded', () => {
       document.getElementById('dateInput').value = new Date().toISOString().split('T')[0];
@@ -438,63 +437,99 @@
       renderQuickChips();
       renderCategoryButtons();
       renderTotalsAndList();
+      updateSyncBadge();
 
-      // Initial direct pull from Sheet
-      if (savedWebhook) {
-        syncFromGoogleSheets(false);
-      }
+      // Attempt flushing sync queue & pulling sheet
+      flushQueueAndSync(false);
     });
 
-    // AUTO-SYNC ON APP RESUME / TAB FOCUS ACROSS PHONES
-    window.addEventListener('focus', () => syncFromGoogleSheets(false));
+    // NETWORK STATUS LISTENERS
+    window.addEventListener('online', () => {
+      document.getElementById('onlineDot').className = 'inline-block w-1.5 h-1.5 rounded-full bg-emerald-400';
+      flushQueueAndSync(false);
+    });
+
+    window.addEventListener('offline', () => {
+      document.getElementById('onlineDot').className = 'inline-block w-1.5 h-1.5 rounded-full bg-amber-400';
+      updateSyncBadge();
+    });
+
+    window.addEventListener('focus', () => flushQueueAndSync(false));
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') {
-        syncFromGoogleSheets(false);
-      }
+      if (document.visibilityState === 'visible') flushQueueAndSync(false);
     });
-
-    // Periodic 30-second live polling
-    setInterval(() => {
-      if (document.visibilityState === 'visible') {
-        syncFromGoogleSheets(false);
-      }
-    }, 30000);
 
     function generateId() {
       return Math.random().toString(16).substring(2, 10);
     }
 
-    // PULL DATA DIRECTLY FROM GOOGLE SHEETS
-    async function syncFromGoogleSheets(showToastMessage = true) {
+    function updateSyncBadge() {
+      const badge = document.getElementById('syncBadge');
+      if (syncQueue.length > 0) {
+        badge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/40 uppercase tracking-wide animate-pulse';
+        badge.innerText = `☁️ ${syncQueue.length} Pending`;
+      } else {
+        badge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 font-bold border border-emerald-500/30 uppercase tracking-wide';
+        badge.innerText = navigator.onLine ? 'Synced' : 'Offline Mode';
+      }
+    }
+
+    // FLUSH PENDING QUEUE THEN PULL SHEET
+    async function flushQueueAndSync(showToastMessage = false) {
+      if (isSyncing) return;
+      isSyncing = true;
+
       const webhookUrl = localStorage.getItem('gas_webhook_url');
       const pin = localStorage.getItem('gas_pin') || '7492';
-      if (!webhookUrl) return;
-
       const syncIcon = document.getElementById('syncIcon');
       if (syncIcon) syncIcon.classList.add('fa-spin');
 
       try {
-        const fetchUrl = `${webhookUrl}?pin=${encodeURIComponent(pin)}&_t=${Date.now()}`;
-        const response = await fetch(fetchUrl);
-        const data = await response.json();
+        // Step 1: Push any pending items in queue
+        if (webhookUrl && syncQueue.length > 0 && navigator.onLine) {
+          const queueToProcess = [...syncQueue];
+          for (const item of queueToProcess) {
+            item.pin = pin;
+            await fetch(webhookUrl, {
+              method: 'POST',
+              mode: 'no-cors',
+              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+              body: JSON.stringify(item)
+            });
+            // Remove sent item from queue
+            syncQueue = syncQueue.filter(q => q.id !== item.id || (item.action && q.action !== item.action));
+            localStorage.setItem('sync_queue', JSON.stringify(syncQueue));
+            updateSyncBadge();
+          }
+        }
 
-        if (Array.isArray(data)) {
-          masterExpenses = data.reverse();
-          localStorage.setItem('travel_expenses_log', JSON.stringify(masterExpenses));
-          renderTotalsAndList();
-          if (showToastMessage) showToast('Synced with Google Sheet!');
-        } else if (data.status === 'unauthorized') {
-          if (showToastMessage) showToast('Invalid PIN in Settings', true);
+        // Step 2: If queue is completely cleared, fetch fresh truth from Google Sheet
+        if (webhookUrl && syncQueue.length === 0 && navigator.onLine) {
+          const fetchUrl = `${webhookUrl}?pin=${encodeURIComponent(pin)}&_t=${Date.now()}`;
+          const response = await fetch(fetchUrl);
+          const data = await response.json();
+
+          if (Array.isArray(data)) {
+            masterExpenses = data.reverse();
+            localStorage.setItem('travel_expenses_log', JSON.stringify(masterExpenses));
+            renderTotalsAndList();
+            if (showToastMessage) showToast('Master Sheet Synced!');
+          }
+        } else if (showToastMessage) {
+          showToast(syncQueue.length > 0 ? `${syncQueue.length} saved offline (Will sync with Wi-Fi)` : 'Offline mode active');
         }
       } catch (err) {
-        console.warn('Could not sync:', err);
-        if (showToastMessage) showToast('Using cached offline data', true);
+        console.warn('Sync failed (device offline):', err);
+        if (showToastMessage) showToast('Saved locally on phone', true);
       } finally {
         if (syncIcon) syncIcon.classList.remove('fa-spin');
+        updateSyncBadge();
+        isSyncing = false;
       }
     }
 
     async function fetchLiveExchangeRate() {
+      if (!navigator.onLine) return;
       try {
         const res = await fetch('https://open.er-api.com/v6/latest/PHP');
         const data = await res.json();
@@ -674,33 +709,27 @@
       resetFormInputs();
     }
 
-    async function deleteSingleExpense(id) {
-      if (!confirm('Delete this expense? It will be removed immediately from Google Sheets.')) return;
+    // OFFLINE-READY DELETE
+    function deleteSingleExpense(id) {
+      if (!confirm('Delete this expense?')) return;
 
       if (editingExpenseId && editingExpenseId.toString() === id.toString()) {
         cancelEditMode();
       }
 
-      showToast('Deleting from Google Sheet...');
+      // 1. Delete from local cache
+      masterExpenses = masterExpenses.filter(item => item.id.toString() !== id.toString());
+      localStorage.setItem('travel_expenses_log', JSON.stringify(masterExpenses));
+      renderTotalsAndList();
 
-      const webhookUrl = localStorage.getItem('gas_webhook_url');
-      const pin = localStorage.getItem('gas_pin') || '7492';
+      // 2. Add to sync queue
+      syncQueue.push({ action: 'delete', id: id });
+      localStorage.setItem('sync_queue', JSON.stringify(syncQueue));
+      updateSyncBadge();
+      showToast('Deleted');
 
-      if (webhookUrl) {
-        try {
-          await fetch(webhookUrl, {
-            method: 'POST',
-            mode: 'no-cors',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({ action: 'delete', id: id, pin: pin })
-          });
-          // Wait 800ms for sheet commit, then pull updated truth
-          setTimeout(() => syncFromGoogleSheets(true), 800);
-        } catch (err) {
-          console.error(err);
-          showToast('Sync error', true);
-        }
-      }
+      // 3. Attempt flush
+      flushQueueAndSync(false);
     }
 
     function resetFormInputs() {
@@ -712,12 +741,13 @@
       if (editingExpenseId) cancelEditMode();
     }
 
-    async function handleFormSubmit(e) {
+    // OFFLINE-READY SUBMIT
+    function handleFormSubmit(e) {
       e.preventDefault();
       
       const inputVal = parseFloat(document.getElementById('costInput').value);
       if (!inputVal || inputVal <= 0) {
-        showToast('Please enter an amount greater than 0', true);
+        showToast('Please enter an amount', true);
         return;
       }
 
@@ -733,7 +763,6 @@
       const date = document.getElementById('dateInput').value;
       const item = document.getElementById('itemInput').value.trim();
       const notes = document.getElementById('notesInput').value.trim();
-      const pin = localStorage.getItem('gas_pin') || '7492';
 
       const expenseRecord = {
         id: editingExpenseId ? editingExpenseId : generateId(),
@@ -745,43 +774,32 @@
         bucket: selectedBucket,
         category: selectedCategory,
         item: item,
-        notes: notes,
-        pin: pin
+        notes: notes
       };
 
-      const webhookUrl = localStorage.getItem('gas_webhook_url');
-      const submitBtn = document.getElementById('submitBtn');
-      submitBtn.disabled = true;
-      submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-lg"></i><span>Syncing...</span>';
-
-      if (webhookUrl) {
-        try {
-          await fetch(webhookUrl, {
-            method: 'POST',
-            mode: 'no-cors',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify(expenseRecord)
-          });
-          showToast('Saved! Syncing Sheet...');
-          
-          if (editingExpenseId) {
-            cancelEditMode();
-          } else {
-            resetFormInputs();
-          }
-
-          // Fetch the updated master list from Google Sheets
-          setTimeout(() => syncFromGoogleSheets(true), 800);
-        } catch (err) {
-          console.error(err);
-          showToast('Failed to save to Google Sheets', true);
-        }
+      // 1. Instant local state update
+      if (editingExpenseId) {
+        const index = masterExpenses.findIndex(e => e.id.toString() === editingExpenseId.toString());
+        if (index !== -1) masterExpenses[index] = expenseRecord;
+        cancelEditMode();
       } else {
-        showToast('Add Webhook URL in Settings', true);
+        masterExpenses.unshift(expenseRecord);
       }
 
-      submitBtn.disabled = false;
-      submitBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up text-lg"></i><span id="submitBtnText">Save Expense</span>';
+      localStorage.setItem('travel_expenses_log', JSON.stringify(masterExpenses));
+      renderTotalsAndList();
+      resetFormInputs();
+
+      // 2. Queue for sheet synchronization
+      syncQueue = syncQueue.filter(q => q.id !== expenseRecord.id);
+      syncQueue.push(expenseRecord);
+      localStorage.setItem('sync_queue', JSON.stringify(syncQueue));
+      updateSyncBadge();
+
+      showToast(navigator.onLine ? 'Saved Instantly!' : 'Saved to Phone (Offline)');
+
+      // 3. Attempt immediate flush if online
+      flushQueueAndSync(false);
     }
 
     function renderTotalsAndList() {
@@ -826,7 +844,7 @@
       });
 
       if (masterExpenses.length === 0) {
-        container.innerHTML = '<div class="text-center text-slate-500 py-8">No expenses found in sheet.</div>';
+        container.innerHTML = '<div class="text-center text-slate-500 py-8">No expenses logged yet.</div>';
       }
 
       document.getElementById('heroCadTotal').innerText = `$${totalCad.toFixed(2)}`;
@@ -866,7 +884,7 @@
       closeSettingsModal();
       showToast('Settings Saved!');
       handleCostInputChange();
-      syncFromGoogleSheets(true);
+      flushQueueAndSync(true);
     }
 
     function showToast(message, isError = false) {
@@ -878,7 +896,7 @@
       if (isError) {
         iconEl.className = 'fa-solid fa-triangle-exclamation text-amber-400 text-base';
       } else {
-        iconEl.className = 'fa-solid fa-circle-check text-emerald-400 text-base';
+        iconEl.className = 'fa-solid fa-bolt text-emerald-400 text-base';
       }
 
       toast.classList.remove('opacity-0', '-translate-y-2');
@@ -887,7 +905,7 @@
       setTimeout(() => {
         toast.classList.remove('opacity-100', 'translate-y-0');
         toast.classList.add('opacity-0', '-translate-y-2');
-      }, 2500);
+      }, 1800);
     }
 
     function escapeHtml(text) {
