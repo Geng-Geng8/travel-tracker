@@ -44,7 +44,7 @@ main.insights-active { max-width: 960px; }
 .insights-color-dot { display: inline-block; flex: 0 0 7px; width: 7px; height: 7px; border-radius: 50%; }
 .insights-legend-name { flex: 1; overflow-wrap: anywhere; }
 .insights-legend-row strong { color: #e2e8f0; font-weight: 600; }
-.insights-breakdown { display: grid; gap: 2px; max-height: 418px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #3a475d transparent; padding: 3px; margin: 0 -3px; }
+.insights-breakdown { display: grid; gap: 2px; max-height: 480px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #3a475d transparent; padding: 3px; margin: 0 -3px; }
 #insightsPage .insights-category-row { display: block; width: 100%; text-align: left; border-radius: 11px; padding: 11px 8px; }
 .insights-category-row:hover { background: #1e293b; }
 .insights-category-top { display: flex; gap: 10px; justify-content: space-between; align-items: baseline; font-size: 12px; margin-bottom: 7px; }
