@@ -19,7 +19,7 @@ Insights reads the existing expense records; it requires no new backend or chart
 
 - Uses the saved `cost_cad` or `cost_php` on each record. Historical expenses are not converted again using today's exchange rate.
 - Adds amounts in integer cents. Valid numeric strings from Sheets are supported by the insights calculations.
-- Custom date endpoints are inclusive. This month and last 30 days include today, using the device's local calendar date.
+- Custom date endpoints are inclusive. This month (to date) and last 30 days include today, using the device's local calendar date.
 - For all time, the daily average covers the first through last matching expense. For a selected period, it covers every calendar day in that period, including days without expenses.
 - Trends group by day for up to 62 days, by month for up to 731 days, and by year for longer ranges. Missing periods show zero spending.
 - With more than six nonzero categories, the donut groups smaller categories as “Other categories”; the ranked list always shows every category separately.

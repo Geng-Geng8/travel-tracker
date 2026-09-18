@@ -23,7 +23,7 @@ test('date, bucket, category, and payment filters intersect and include both bou
   assert.deepEqual(summary.trend.map(x => x.cents), [0, 0, 2020]);
   assert.equal(data.summarize(records, { ...filters, period: 'custom', start: '2026-09-01', end: '2026-09-03' }).count, 3);
 });
-test('this month and last 30 days stop at today and use local calendar dates', () => {
+test('this month (to date) and last 30 days stop at today and use local calendar dates', () => {
   const today = new Date(2026, 8, 18, 23, 30);
   assert.deepEqual(data.bounds('month', null, null, today), { start: '2026-09-01', end: '2026-09-18' });
   assert.deepEqual(data.bounds('30days', null, null, today), { start: '2026-08-20', end: '2026-09-18' });
@@ -67,4 +67,67 @@ test('leap days, duplicate categories across buckets, and HTML-like labels are p
   const before = JSON.stringify(items);
   const summary = data.summarize(items, filters);
   assert.equal(summary.count, 2); assert.equal(JSON.stringify(items), before);
+});
+test('shared local date helper agrees around midnight in Toronto and Manila', () => {
+  const torontoEvening = new Date('2026-09-19T03:59:00Z'); // 23:59 EDT on Sep 18
+  const torontoMorning = new Date('2026-09-19T04:01:00Z'); // 00:01 EDT on Sep 19
+  const manilaEvening  = new Date('2026-09-18T15:59:00Z'); // 23:59 PHT on Sep 18
+  const manilaMorning  = new Date('2026-09-18T16:01:00Z'); // 00:01 PHT on Sep 19
+
+  // Toronto before midnight: local date is Sep 18 (while UTC date is already Sep 19)
+  assert.equal(data.dateKey(torontoEvening, 'America/Toronto'), '2026-09-18');
+  assert.equal(data.bounds('month', null, null, torontoEvening, 'America/Toronto').end, '2026-09-18');
+  assert.notEqual(torontoEvening.toISOString().split('T')[0], data.dateKey(torontoEvening, 'America/Toronto'));
+
+  // Toronto after midnight: local date is Sep 19
+  assert.equal(data.dateKey(torontoMorning, 'America/Toronto'), '2026-09-19');
+  assert.equal(data.bounds('month', null, null, torontoMorning, 'America/Toronto').end, '2026-09-19');
+
+  // Manila before midnight: local date is Sep 18
+  assert.equal(data.dateKey(manilaEvening, 'Asia/Manila'), '2026-09-18');
+  assert.equal(data.bounds('month', null, null, manilaEvening, 'Asia/Manila').end, '2026-09-18');
+
+  // Manila after midnight: local date is Sep 19
+  assert.equal(data.dateKey(manilaMorning, 'Asia/Manila'), '2026-09-19');
+  assert.equal(data.bounds('month', null, null, manilaMorning, 'Asia/Manila').end, '2026-09-19');
+});
+test('parseAmount validates numbers and numeric strings without defaulting invalid inputs to zero', () => {
+  assert.equal(data.parseAmount(25.5), 25.5);
+  assert.equal(data.parseAmount('25.50'), 25.5);
+  assert.equal(data.parseAmount(0), 0);
+  assert.equal(data.parseAmount('0'), 0);
+
+  // Invalid values return NaN, never zero
+  for (const bad of ['', '   ', null, undefined, 'abc', -5, Infinity, true, '1,200']) {
+    assert.ok(Number.isNaN(data.parseAmount(bad)), `Expected NaN for: ${bad}`);
+  }
+});
+test('history and insights handle numeric strings and render malicious fields safely without execution', () => {
+  const item = {
+    id: "exp_1'; alert(1); //",
+    item: '<script>alert("xss")</script>',
+    category: '<img src=x onerror=alert(1)>',
+    payment_method: '<b>Credit</b>',
+    notes: '"><svg onload=alert(1)>',
+    date: '2026-09-18',
+    cost_cad: '45.50',
+    cost_php: '2000'
+  };
+
+  // Safe parsing prevents .toFixed crash on numeric string
+  const cad = data.parseAmount(item.cost_cad);
+  const php = data.parseAmount(item.cost_php);
+  assert.equal(cad, 45.5);
+  assert.equal(php, 2000);
+  assert.equal(cad.toFixed(2), '45.50');
+  assert.equal(Math.round(php).toLocaleString(), '2,000');
+
+  // When simulated in DOM node textContent, markup characters are treated literally
+  const mockNode = { textContent: '' };
+  mockNode.textContent = item.item;
+  assert.equal(mockNode.textContent, '<script>alert("xss")</script>');
+  mockNode.textContent = item.category;
+  assert.equal(mockNode.textContent, '<img src=x onerror=alert(1)>');
+  mockNode.textContent = `"${item.notes}"`;
+  assert.equal(mockNode.textContent, '""><svg onload=alert(1)>"');
 });

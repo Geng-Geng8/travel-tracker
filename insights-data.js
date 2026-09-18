@@ -6,8 +6,16 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
   const DAY = 86400000;
-  function dateKey(date) {
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  function dateKey(date = new Date(), timeZone) {
+    const d = date instanceof Date ? date : new Date(date);
+    if (timeZone) {
+      const parts = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(d);
+      const y = parts.find(p => p.type === 'year').value;
+      const m = parts.find(p => p.type === 'month').value;
+      const dVal = parts.find(p => p.type === 'day').value;
+      return `${y}-${m}-${dVal}`;
+    }
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
   function parseDay(value) {
     const key = String(value || '').slice(0, 10);
@@ -17,8 +25,8 @@
   }
   function dayNumber(key) { return Date.parse(key + 'T00:00:00Z') / DAY; }
   function addDays(key, days) { return new Date((dayNumber(key) + days) * DAY).toISOString().slice(0, 10); }
-  function bounds(period, start, end, today = new Date()) {
-    const current = dateKey(today);
+  function bounds(period, start, end, today = new Date(), timeZone) {
+    const current = dateKey(today, timeZone);
     if (period === 'month') return { start: current.slice(0, 7) + '-01', end: current };
     if (period === '30days') return { start: addDays(current, -29), end: current };
     if (period === 'custom') {
@@ -30,12 +38,20 @@
     return { start: null, end: null };
   }
   function label(value, fallback) { return typeof value === 'string' && value.trim() ? value.trim() : fallback; }
+  function parseAmount(value) {
+    if (typeof value === 'number') return Number.isFinite(value) && value >= 0 ? value : NaN;
+    if (typeof value === 'string' && value.trim() !== '') {
+      const num = Number(value.trim());
+      return Number.isFinite(num) && num >= 0 ? num : NaN;
+    }
+    return NaN;
+  }
   function normalize(records, currency) {
     const rows = [];
     let skipped = 0;
     for (const record of records) {
       const value = record && record[currency === 'PHP' ? 'cost_php' : 'cost_cad'];
-      const amount = typeof value === 'number' || (typeof value === 'string' && value.trim()) ? Number(value) : NaN;
+      const amount = parseAmount(value);
       const cents = Math.round(amount * 100);
       const date = parseDay(record && record.date);
       if (!date || !Number.isSafeInteger(cents) || cents < 0) { skipped++; continue; }
@@ -49,9 +65,9 @@
       && (filters.category === 'all' || row.category === filters.category)
       && (filters.payment === 'all' || row.payment === filters.payment);
   }
-  function summarize(records, filters, today = new Date()) {
+  function summarize(records, filters, today = new Date(), timeZone) {
     const normalized = normalize(records, filters.currency);
-    const range = bounds(filters.period, filters.start, filters.end, today);
+    const range = bounds(filters.period, filters.start, filters.end, today, timeZone);
     if (range.error) return { error: range.error, skipped: normalized.skipped };
     const rows = normalized.rows.filter(row => matches(row, filters, range));
     const groups = new Map();
@@ -88,5 +104,5 @@
     }
     return { total, count: rows.length, categories, start, end, days, average: days ? total / days : 0, trend, unit, skipped: normalized.skipped };
   }
-  return { dateKey, parseDay, addDays, bounds, normalize, summarize };
+  return { dateKey, parseDay, addDays, bounds, normalize, summarize, parseAmount };
 });
