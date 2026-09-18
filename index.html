@@ -2,8 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PHP & CAD Travel Tracker</title>
+  <link rel="stylesheet" href="insights.css">
 
   <!-- App Icons & PWA Metadata -->
   <link rel="icon" type="image/png" href="1-CAD-PHP-AppIcon.png">
@@ -109,6 +110,16 @@
       </div>
     </header>
 
+    <nav class="app-tabs" role="tablist" aria-label="Travel Tracker pages">
+      <button id="expenseTab" class="app-tab" type="button" role="tab" aria-selected="true" aria-controls="expensePage" tabindex="0">
+        <i class="fa-solid fa-plus" aria-hidden="true"></i> Add expense
+      </button>
+      <button id="insightsTab" class="app-tab" type="button" role="tab" aria-selected="false" aria-controls="insightsPage" tabindex="-1">
+        <i class="fa-solid fa-chart-pie" aria-hidden="true"></i> Insights
+      </button>
+    </nav>
+
+    <div id="expensePage" role="tabpanel" aria-labelledby="expenseTab" class="space-y-4">
     <!-- Total Spending Card -->
     <section class="glass-card rounded-3xl p-5 relative overflow-hidden shadow-2xl border border-amber-500/20">
       <div class="absolute -right-6 -bottom-6 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl pointer-events-none"></div>
@@ -314,6 +325,44 @@
       </div>
 
     </form>
+    </div>
+
+    <section id="insightsPage" role="tabpanel" aria-labelledby="insightsTab" hidden>
+      <div class="insights-heading">
+        <div><p class="insights-eyebrow">YOUR MONEY, AT A GLANCE</p><h2>Spending insights</h2><p class="insights-muted">A clearer picture of where it all goes.</p></div>
+        <div class="insights-currency" role="group" aria-label="Chart currency">
+          <button type="button" data-currency="CAD" aria-pressed="true">CAD</button>
+          <button type="button" data-currency="PHP" aria-pressed="false">PHP</button>
+        </div>
+      </div>
+
+      <div class="insights-filters">
+        <label>Period<select id="insightsPeriod"><option value="all">All time</option><option value="month">This month (to date)</option><option value="30days">Last 30 days</option><option value="custom">Custom dates</option></select></label>
+        <label>Bucket<select id="insightsBucket"><option value="all">All buckets</option></select></label>
+        <label>Category<select id="insightsCategory"><option value="all">All categories</option></select></label>
+        <label>Payment<select id="insightsPayment"><option value="all">All methods</option></select></label>
+        <div id="insightsCustomDates" class="insights-custom-dates" hidden>
+          <label>From<input id="insightsStart" type="date"></label><label>To<input id="insightsEnd" type="date"></label>
+        </div>
+      </div>
+      <div class="insights-filter-summary"><p id="insightsScope" aria-live="polite"></p><button id="insightsReset" type="button">Reset filters</button></div>
+      <p id="insightsWarning" class="insights-warning" role="status" hidden></p>
+
+      <div id="insightsContent">
+        <div class="insights-stats">
+          <article class="insights-stat insights-stat-primary"><p class="insights-eyebrow">TOTAL SPENT</p><p id="insightsTotal" class="insights-big-number"></p><p id="insightsCount" class="insights-muted"></p></article>
+          <article class="insights-stat"><p class="insights-eyebrow">TOP CATEGORY</p><p id="insightsTop" class="insights-stat-value"></p><p id="insightsTopShare" class="insights-muted"></p></article>
+          <article class="insights-stat"><p class="insights-eyebrow">DAILY AVERAGE</p><p id="insightsAverage" class="insights-stat-value"></p><p id="insightsAverageNote" class="insights-muted"></p></article>
+        </div>
+        <div class="insights-chart-grid">
+          <article class="insights-card"><div class="insights-card-heading"><div><h3>Where it goes</h3><p class="insights-muted">Your spending by category</p></div><span class="insights-tag">SHARE</span></div><div id="insightsDonut" class="insights-donut"></div><div id="insightsLegend" class="insights-legend"></div></article>
+          <article class="insights-card"><div class="insights-card-heading"><div><h3>Category breakdown</h3><p class="insights-muted">Select a category to take a closer look</p></div></div><div id="insightsBreakdown" class="insights-breakdown"></div></article>
+        </div>
+        <article class="insights-card insights-trend-card"><div class="insights-card-heading"><div><h3>Spending over time</h3><p id="insightsTrendNote" class="insights-muted"></p></div><span id="insightsTrendUnit" class="insights-tag"></span></div><div id="insightsTrend" class="insights-trend"></div><details class="insights-trend-details"><summary>View exact amounts</summary><div id="insightsTrendTable"></div></details></article>
+      </div>
+      <div id="insightsEmpty" class="insights-empty" hidden><span class="insights-empty-icon" aria-hidden="true">◔</span><h3 id="insightsEmptyTitle">Your next expense starts the story</h3><p id="insightsEmptyText"></p><button id="insightsEmptyAction" type="button" class="insights-action">Add an expense</button></div>
+      <p class="insights-footnote">Calculated from your saved expense amounts. Updates when you save, edit, delete, or sync.</p>
+    </section>
 
   </main>
 
@@ -407,6 +456,7 @@
     <span id="toastMsg">Saved Instantly!</span>
   </div>
 
+  <script src="insights-data.js"></script>
   <script>
     const BUCKET_CATEGORIES = {
       'Play': ['Fitness', 'Eating Out', 'Travel', 'Entertainment', 'Amazon', 'Clothing'],
@@ -429,7 +479,7 @@
     let syncQueue = JSON.parse(localStorage.getItem('sync_queue') || '[]');
 
     window.addEventListener('DOMContentLoaded', () => {
-      document.getElementById('dateInput').value = new Date().toISOString().split('T')[0];
+      document.getElementById('dateInput').value = InsightsData.dateKey(new Date());
       
       const savedWebhook = localStorage.getItem('gas_webhook_url') || '';
       document.getElementById('settingWebhookUrl').value = savedWebhook;
@@ -687,12 +737,15 @@
 
       editingExpenseId = item.id;
       
-      if (item.cost_php > 0) {
+      const phpVal = InsightsData.parseAmount(item.cost_php);
+      const cadVal = InsightsData.parseAmount(item.cost_cad);
+
+      if (Number.isFinite(phpVal) && phpVal > 0) {
         setInputCurrency('PHP');
-        document.getElementById('costInput').value = item.cost_php;
+        document.getElementById('costInput').value = phpVal;
       } else {
         setInputCurrency('CAD');
-        document.getElementById('costInput').value = item.cost_cad;
+        document.getElementById('costInput').value = Number.isFinite(cadVal) ? cadVal : '';
       }
 
       document.getElementById('dateInput').value = item.date;
@@ -745,7 +798,7 @@
       document.getElementById('costInput').value = '';
       document.getElementById('itemInput').value = '';
       document.getElementById('notesInput').value = '';
-      document.getElementById('dateInput').value = new Date().toISOString().split('T')[0];
+      document.getElementById('dateInput').value = InsightsData.dateKey(new Date());
       handleCostInputChange();
       if (editingExpenseId) cancelEditMode();
     }
@@ -813,49 +866,116 @@
       let totalCad = 0;
 
       const container = document.getElementById('historyListContainer');
-      container.innerHTML = '';
+      container.replaceChildren();
 
       masterExpenses.forEach(item => {
-        totalPhp += (item.cost_php || 0);
-        totalCad += (item.cost_cad || 0);
+        const cad = InsightsData.parseAmount(item.cost_cad);
+        const php = InsightsData.parseAmount(item.cost_php);
+        if (Number.isFinite(cad)) totalCad += cad;
+        if (Number.isFinite(php)) totalPhp += php;
 
         const card = document.createElement('div');
         card.className = 'p-3 bg-slate-800/80 rounded-2xl border border-slate-700/60 flex justify-between items-center gap-2';
-        card.innerHTML = `
-          <div class="flex-1 pr-1">
-            <div class="font-bold text-white text-sm">${escapeHtml(item.item)}</div>
-            <div class="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
-              <span>${item.date}</span> • 
-              <span class="text-amber-400 font-medium">${item.category}</span> • 
-              <span class="text-blue-400 font-medium">${item.payment_method}</span>
-            </div>
-            ${item.notes ? `<div class="text-[10px] text-slate-500 italic mt-0.5">"${escapeHtml(item.notes)}"</div>` : ''}
-          </div>
-          <div class="text-right flex items-center gap-2.5">
-            <div>
-              <div class="font-extrabold text-blue-300 text-sm">$${item.cost_cad.toFixed(2)} CAD</div>
-              <div class="text-[10px] font-semibold text-amber-400">₱${Math.round(item.cost_php).toLocaleString()} PHP</div>
-            </div>
-            <div class="flex flex-col gap-1">
-              <button type="button" onclick="startEditExpense('${item.id}')" title="Edit" class="w-8 h-8 rounded-lg bg-slate-700/60 hover:bg-slate-700 text-blue-400 active:scale-90 flex items-center justify-center transition">
-                <i class="fa-solid fa-pen text-xs"></i>
-              </button>
-              <button type="button" onclick="deleteSingleExpense('${item.id}')" title="Delete" class="w-8 h-8 rounded-lg bg-slate-700/60 hover:bg-red-950/80 text-red-400 active:scale-90 flex items-center justify-center transition">
-                <i class="fa-solid fa-trash-can text-xs"></i>
-              </button>
-            </div>
-          </div>
-        `;
+
+        const leftCol = document.createElement('div');
+        leftCol.className = 'flex-1 pr-1';
+
+        const itemEl = document.createElement('div');
+        itemEl.className = 'font-bold text-white text-sm';
+        itemEl.textContent = item.item || 'Untitled expense';
+        leftCol.appendChild(itemEl);
+
+        const metaEl = document.createElement('div');
+        metaEl.className = 'text-[11px] text-slate-400 flex items-center gap-1 mt-0.5';
+
+        const dateSpan = document.createElement('span');
+        dateSpan.textContent = item.date || '';
+        metaEl.appendChild(dateSpan);
+
+        const dot1 = document.createTextNode(' • ');
+        metaEl.appendChild(dot1);
+
+        const catSpan = document.createElement('span');
+        catSpan.className = 'text-amber-400 font-medium';
+        catSpan.textContent = item.category || 'Uncategorized';
+        metaEl.appendChild(catSpan);
+
+        const dot2 = document.createTextNode(' • ');
+        metaEl.appendChild(dot2);
+
+        const paySpan = document.createElement('span');
+        paySpan.className = 'text-blue-400 font-medium';
+        paySpan.textContent = item.payment_method || 'Unspecified';
+        metaEl.appendChild(paySpan);
+
+        leftCol.appendChild(metaEl);
+
+        if (item.notes) {
+          const notesEl = document.createElement('div');
+          notesEl.className = 'text-[10px] text-slate-500 italic mt-0.5';
+          notesEl.textContent = `"${item.notes}"`;
+          leftCol.appendChild(notesEl);
+        }
+
+        card.appendChild(leftCol);
+
+        const rightCol = document.createElement('div');
+        rightCol.className = 'text-right flex items-center gap-2.5';
+
+        const amountsContainer = document.createElement('div');
+
+        const cadEl = document.createElement('div');
+        cadEl.className = 'font-extrabold text-blue-300 text-sm';
+        cadEl.textContent = Number.isFinite(cad) ? `$${cad.toFixed(2)} CAD` : '— CAD';
+        amountsContainer.appendChild(cadEl);
+
+        const phpEl = document.createElement('div');
+        phpEl.className = 'text-[10px] font-semibold text-amber-400';
+        phpEl.textContent = Number.isFinite(php) ? `₱${Math.round(php).toLocaleString()} PHP` : '— PHP';
+        amountsContainer.appendChild(phpEl);
+
+        rightCol.appendChild(amountsContainer);
+
+        const actionsContainer = document.createElement('div');
+        actionsContainer.className = 'flex flex-col gap-1';
+
+        const editBtn = document.createElement('button');
+        editBtn.type = 'button';
+        editBtn.title = 'Edit';
+        editBtn.className = 'w-8 h-8 rounded-lg bg-slate-700/60 hover:bg-slate-700 text-blue-400 active:scale-90 flex items-center justify-center transition';
+        const editIcon = document.createElement('i');
+        editIcon.className = 'fa-solid fa-pen text-xs';
+        editBtn.appendChild(editIcon);
+        editBtn.addEventListener('click', () => startEditExpense(item.id));
+        actionsContainer.appendChild(editBtn);
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.title = 'Delete';
+        deleteBtn.className = 'w-8 h-8 rounded-lg bg-slate-700/60 hover:bg-red-950/80 text-red-400 active:scale-90 flex items-center justify-center transition';
+        const deleteIcon = document.createElement('i');
+        deleteIcon.className = 'fa-solid fa-trash-can text-xs';
+        deleteBtn.appendChild(deleteIcon);
+        deleteBtn.addEventListener('click', () => deleteSingleExpense(item.id));
+        actionsContainer.appendChild(deleteBtn);
+
+        rightCol.appendChild(actionsContainer);
+        card.appendChild(rightCol);
+
         container.appendChild(card);
       });
 
       if (masterExpenses.length === 0) {
-        container.innerHTML = '<div class="text-center text-slate-500 py-8">No expenses logged yet.</div>';
+        const emptyDiv = document.createElement('div');
+        emptyDiv.className = 'text-center text-slate-500 py-8';
+        emptyDiv.textContent = 'No expenses logged yet.';
+        container.appendChild(emptyDiv);
       }
 
-      document.getElementById('heroCadTotal').innerText = `$${totalCad.toFixed(2)}`;
-      document.getElementById('heroPhpTotal').innerText = `₱${Math.round(totalPhp).toLocaleString()} PHP`;
-      document.getElementById('historyCount').innerText = masterExpenses.length;
+      document.getElementById('heroCadTotal').textContent = `$${totalCad.toFixed(2)}`;
+      document.getElementById('heroPhpTotal').textContent = `₱${Math.round(totalPhp).toLocaleString()} PHP`;
+      document.getElementById('historyCount').textContent = String(masterExpenses.length);
+      if (window.TravelInsights) window.TravelInsights.refresh(masterExpenses);
     }
 
     function openSettingsModal() {
@@ -927,5 +1047,6 @@
       });
     }
   </script>
+  <script src="insights.js"></script>
 </body>
 </html>
