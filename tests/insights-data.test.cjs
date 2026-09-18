@@ -1,5 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const cp = require('node:child_process');
 const data = require('../insights-data.js');
 const filters = { period: 'all', bucket: 'all', category: 'all', payment: 'all', currency: 'CAD' };
 const records = [
@@ -102,32 +105,317 @@ test('parseAmount validates numbers and numeric strings without defaulting inval
     assert.ok(Number.isNaN(data.parseAmount(bad)), `Expected NaN for: ${bad}`);
   }
 });
-test('history and insights handle numeric strings and render malicious fields safely without execution', () => {
-  const item = {
-    id: "exp_1'; alert(1); //",
-    item: '<script>alert("xss")</script>',
-    category: '<img src=x onerror=alert(1)>',
-    payment_method: '<b>Credit</b>',
-    notes: '"><svg onload=alert(1)>',
-    date: '2026-09-18',
-    cost_cad: '45.50',
-    cost_php: '2000'
-  };
+test('production date behavior uses local device calendar date without shifting saved expense dates', () => {
+  const rootDir = path.resolve(__dirname, '..');
+  const now = new Date();
+  const localToday = data.dateKey(now);
+  assert.match(localToday, /^\d{4}-\d{2}-\d{2}$/);
 
-  // Safe parsing prevents .toFixed crash on numeric string
-  const cad = data.parseAmount(item.cost_cad);
-  const php = data.parseAmount(item.cost_php);
-  assert.equal(cad, 45.5);
-  assert.equal(php, 2000);
-  assert.equal(cad.toFixed(2), '45.50');
-  assert.equal(Math.round(php).toLocaleString(), '2,000');
+  // Insights "This month" and "Last 30 days" end on the exact same local date
+  assert.equal(data.bounds('month').end, localToday);
+  assert.equal(data.bounds('30days').end, localToday);
 
-  // When simulated in DOM node textContent, markup characters are treated literally
-  const mockNode = { textContent: '' };
-  mockNode.textContent = item.item;
-  assert.equal(mockNode.textContent, '<script>alert("xss")</script>');
-  mockNode.textContent = item.category;
-  assert.equal(mockNode.textContent, '<img src=x onerror=alert(1)>');
-  mockNode.textContent = `"${item.notes}"`;
-  assert.equal(mockNode.textContent, '""><svg onload=alert(1)>"');
+  // Saved expense dates from Google Sheets/local records are calendar dates, preserved exactly
+  const sheetRecord = { date: '2026-09-01', cost_cad: '10.50', cost_php: '450', category: 'Travel', bucket: 'Play', payment_method: 'Cash' };
+  const normalized = data.normalize([sheetRecord], 'CAD');
+  assert.equal(normalized.rows[0].date, '2026-09-01');
+
+  const summarized = data.summarize([sheetRecord], { period: 'all', bucket: 'all', category: 'all', payment: 'all', currency: 'CAD' });
+  assert.equal(summarized.start, '2026-09-01');
+  assert.equal(summarized.end, '2026-09-01');
+
+  // Verify generic behavior across generic timezones without Toronto/Manila-specific application logic
+  const genericTimezones = ['America/Toronto', 'Asia/Manila', 'UTC', 'Pacific/Auckland'];
+  for (const tz of genericTimezones) {
+    const childScript = `
+      const data = require('./insights-data.js');
+      const now = new Date();
+      const localToday = data.dateKey(now);
+      const mBounds = data.bounds('month');
+      const dBounds = data.bounds('30days');
+      if (mBounds.end !== localToday) throw new Error('Month bounds end mismatch in ' + '${tz}');
+      if (dBounds.end !== localToday) throw new Error('30days bounds end mismatch in ' + '${tz}');
+      const norm = data.normalize([{ date: '2026-09-01', cost_cad: 10 }], 'CAD');
+      if (norm.rows[0].date !== '2026-09-01') throw new Error('Saved date was shifted in ' + '${tz}');
+    `;
+    const res = cp.spawnSync(process.execPath, ['-e', childScript], {
+      cwd: rootDir,
+      env: { ...process.env, TZ: tz },
+      timeout: 5000
+    });
+    assert.equal(res.status, 0, `TZ generic test failed for ${tz}: ${res.stderr.toString()}`);
+  }
 });
+
+function findBrowser() {
+  if (process.env.CHROME_BIN && fs.existsSync(process.env.CHROME_BIN)) return process.env.CHROME_BIN;
+  if (process.env.BROWSER_BIN && fs.existsSync(process.env.BROWSER_BIN)) return process.env.BROWSER_BIN;
+  const candidates = [
+    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+    '/usr/bin/google-chrome',
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/msedge',
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge'
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+  return null;
+}
+
+test('history and insights handle numeric strings, preserve IDs, and render malicious fields safely in real DOM', () => {
+  const browser = findBrowser();
+  assert.ok(browser, 'A runtime-available browser (Chrome/Edge/Chromium) is required to verify real DOM security rendering');
+
+  const rootDir = path.resolve(__dirname, '..');
+  const indexHtmlPath = path.join(rootDir, 'index.html');
+  const baseHtml = fs.readFileSync(indexHtmlPath, 'utf8')
+    .replace(/https:\/\/cdn\.tailwindcss\.com/g, '')
+    .replace(/https:\/\/cdnjs\.cloudflare\.com[^"]+/g, '');
+
+  const testRunnerScript = `
+    <script>
+      window.addEventListener('DOMContentLoaded', () => {
+        try {
+          const hostileItem = {
+            id: "exp_1'; alert(1); //",
+            item: '<script>alert("xss-merchant")<\\/script>',
+            category: '<img src=x onerror=alert("xss-cat")>',
+            payment_method: '<b>Credit</b>',
+            notes: '"><svg onload=alert("xss-notes")>',
+            date: '<script>alert("xss-date")<\\/script>',
+            cost_cad: '45.50',
+            cost_php: '2000'
+          };
+
+          // 1. Date inputs & resetFormInputs verification
+          const dateInput = document.getElementById('dateInput');
+          if (!dateInput) throw new Error('dateInput not found');
+          const expectedToday = InsightsData.dateKey(new Date());
+          if (dateInput.value !== expectedToday) {
+            throw new Error('Initial dateInput value (' + dateInput.value + ') does not match local today (' + expectedToday + ')');
+          }
+
+          dateInput.value = '2020-01-01';
+          resetFormInputs();
+          if (dateInput.value !== expectedToday) {
+            throw new Error('resetFormInputs() did not restore local today');
+          }
+
+          // 2. Set up spies for edit, delete, and refresh
+          let editedId = null;
+          let deletedId = null;
+          window.startEditExpense = function(id) { editedId = id; };
+          window.deleteSingleExpense = function(id) { deletedId = id; };
+          let refreshCalledWith = null;
+          window.TravelInsights = {
+            refresh: function(expenses) {
+              refreshCalledWith = expenses;
+            }
+          };
+
+          masterExpenses = [ hostileItem ];
+          renderTotalsAndList();
+
+          const container = document.getElementById('historyListContainer');
+          if (!container) throw new Error('#historyListContainer container element not found');
+          const card = container.children[0];
+          if (!card) throw new Error('Expense card was not rendered');
+
+          // 3. HTML-like merchant values display literally with no child elements
+          const itemEl = card.querySelector('.font-bold.text-white');
+          if (!itemEl) throw new Error('Merchant item element not found');
+          if (itemEl.textContent !== hostileItem.item) {
+            throw new Error('Merchant text mismatch: expected "' + hostileItem.item + '", got "' + itemEl.textContent + '"');
+          }
+          if (itemEl.children.length !== 0) {
+            throw new Error('Merchant element contains unexpected child elements');
+          }
+
+          // 4. HTML-like date, category, and payment-method display literally with no child elements
+          const metaContainer = card.querySelector('.text-\\\\[11px\\\\]');
+          if (!metaContainer) throw new Error('Card metadata container not found');
+          const metaSpans = metaContainer.querySelectorAll('span');
+          if (metaSpans.length < 3) throw new Error('Expected 3 metadata spans, got ' + metaSpans.length);
+
+          if (metaSpans[0].textContent !== hostileItem.date) {
+            throw new Error('Date text mismatch: expected "' + hostileItem.date + '", got "' + metaSpans[0].textContent + '"');
+          }
+          if (metaSpans[0].children.length !== 0) {
+            throw new Error('Date element contains unexpected child elements');
+          }
+
+          if (metaSpans[1].textContent !== hostileItem.category) {
+            throw new Error('Category text mismatch: expected "' + hostileItem.category + '", got "' + metaSpans[1].textContent + '"');
+          }
+          if (metaSpans[1].children.length !== 0) {
+            throw new Error('Category element contains unexpected child elements');
+          }
+
+          if (metaSpans[2].textContent !== hostileItem.payment_method) {
+            throw new Error('Payment method text mismatch: expected "' + hostileItem.payment_method + '", got "' + metaSpans[2].textContent + '"');
+          }
+          if (metaSpans[2].children.length !== 0) {
+            throw new Error('Payment method element contains unexpected child elements');
+          }
+
+          // 5. HTML-like notes display literally with no child elements
+          const notesEl = card.querySelector('.italic');
+          if (!notesEl) throw new Error('Notes element not found');
+          if (notesEl.textContent !== '"' + hostileItem.notes + '"') {
+            throw new Error('Notes text mismatch: expected "\\"' + hostileItem.notes + '\\"", got "' + notesEl.textContent + '"');
+          }
+          if (notesEl.children.length !== 0) {
+            throw new Error('Notes element contains unexpected child elements');
+          }
+
+          // 6. No script, image error handler, SVG handler, or injected HTML element is created
+          const hostileTags = container.querySelectorAll('script, img, svg, b');
+          if (hostileTags.length > 0) {
+            throw new Error('Found ' + hostileTags.length + ' injected HTML elements: ' + Array.from(hostileTags).map(t => t.tagName).join(', '));
+          }
+
+          const allElements = container.querySelectorAll('*');
+          for (const el of allElements) {
+            for (const attr of el.attributes) {
+              if (attr.name.toLowerCase().startsWith('on') && attr.value.includes('alert')) {
+                throw new Error('Found inline handler attribute with hostile code: ' + attr.name + '="' + attr.value + '"');
+              }
+            }
+          }
+
+          // 7. Unusual transaction ID containing quotes reaches Edit handler
+          const editBtn = card.querySelector('button[title="Edit"]');
+          if (!editBtn) throw new Error('Edit button not found');
+          editBtn.click();
+          if (editedId !== hostileItem.id) {
+            throw new Error('Edit handler received wrong ID: ' + editedId);
+          }
+
+          // 8. Unusual transaction ID containing quotes reaches Delete handler
+          const deleteBtn = card.querySelector('button[title="Delete"]');
+          if (!deleteBtn) throw new Error('Delete button not found');
+          deleteBtn.click();
+          if (deletedId !== hostileItem.id) {
+            throw new Error('Delete handler received wrong ID: ' + deletedId);
+          }
+
+          // 9. Numeric strings "45.50" and "2000" render correctly
+          const amounts = card.querySelectorAll('.text-right div > div');
+          if (!amounts[0] || !amounts[0].textContent.includes('$45.50 CAD')) {
+            throw new Error('CAD numeric string amount not rendered correctly: ' + (amounts[0] ? amounts[0].textContent : 'null'));
+          }
+          if (!amounts[1] || !amounts[1].textContent.includes('₱2,000 PHP')) {
+            throw new Error('PHP numeric string amount not rendered correctly: ' + (amounts[1] ? amounts[1].textContent : 'null'));
+          }
+
+          // 10. Rendering numeric strings does not prevent TravelInsights.refresh() from running
+          if (!refreshCalledWith || refreshCalledWith !== masterExpenses) {
+            throw new Error('TravelInsights.refresh() was not called with masterExpenses');
+          }
+
+          const resultEl = document.createElement('div');
+          resultEl.id = 'test-result';
+          resultEl.setAttribute('data-status', 'pass');
+          document.body.appendChild(resultEl);
+        } catch (err) {
+          const resultEl = document.createElement('div');
+          resultEl.id = 'test-result';
+          resultEl.setAttribute('data-status', 'fail');
+          resultEl.setAttribute('data-error', err.message || String(err));
+          document.body.appendChild(resultEl);
+        }
+      });
+    </script>
+  `;
+
+  function executeInBrowser(html) {
+    const tmpFile = path.join(rootDir, 'temp_dom_test.html');
+    fs.writeFileSync(tmpFile, html.replace('</body>', testRunnerScript + '</body>'), 'utf8');
+    try {
+      const res = cp.spawnSync(browser, [
+        '--headless=new',
+        '--disable-gpu',
+        '--dump-dom',
+        'file:///' + tmpFile.replace(/\\/g, '/')
+      ], { timeout: 10000 });
+      const stdout = res.stdout ? res.stdout.toString() : '';
+      const match = stdout.match(/id="test-result"\s+data-status="([^"]+)"(?:\s+data-error="([^"]*)")?/);
+      return {
+        status: match ? match[1] : 'error',
+        error: match ? (match[2] || '') : 'No test result found in dumped DOM. Process exit: ' + res.status + ', stderr: ' + (res.stderr ? res.stderr.toString() : '')
+      };
+    } finally {
+      if (fs.existsSync(tmpFile)) fs.unlinkSync(tmpFile);
+    }
+  }
+
+  // 1. Verify that current safe implementation PASSES all checks
+  const safeResult = executeInBrowser(baseHtml);
+  assert.equal(safeResult.status, 'pass', `Safe DOM rendering check failed: ${safeResult.error}`);
+
+  // 2. Verify that the test FAILS if the history renderer is changed back to unsafe innerHTML interpolation
+  const originalRenderTotals = fs.readFileSync(indexHtmlPath, 'utf8');
+  const renderTotalsBlock = originalRenderTotals.slice(
+    originalRenderTotals.indexOf('function renderTotalsAndList()'),
+    originalRenderTotals.indexOf('function openSettingsModal()')
+  );
+
+  const unsafePreFixRenderer = `function renderTotalsAndList() {
+      let totalPhp = 0;
+      let totalCad = 0;
+      const container = document.getElementById('historyListContainer');
+      container.innerHTML = '';
+      masterExpenses.forEach(item => {
+        totalPhp += (item.cost_php || 0);
+        totalCad += (item.cost_cad || 0);
+        const card = document.createElement('div');
+        card.className = 'p-3 bg-slate-800/80 rounded-2xl border border-slate-700/60 flex justify-between items-center gap-2';
+        card.innerHTML = \`
+          <div class="flex-1 pr-1">
+            <div class="font-bold text-white text-sm">\${escapeHtml(item.item)}</div>
+            <div class="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
+              <span>\${item.date}</span> • 
+              <span class="text-amber-400 font-medium">\${item.category}</span> • 
+              <span class="text-blue-400 font-medium">\${item.payment_method}</span>
+            </div>
+            \${item.notes ? \`<div class="text-[10px] text-slate-500 italic mt-0.5">"\${escapeHtml(item.notes)}"</div>\` : ''}
+          </div>
+          <div class="text-right flex items-center gap-2.5">
+            <div>
+              <div class="font-extrabold text-blue-300 text-sm">$\${item.cost_cad.toFixed(2)} CAD</div>
+              <div class="text-[10px] font-semibold text-amber-400">₱\${Math.round(item.cost_php).toLocaleString()} PHP</div>
+            </div>
+            <div class="flex flex-col gap-1">
+              <button type="button" onclick="startEditExpense('\${item.id}')" title="Edit" class="w-8 h-8 rounded-lg bg-slate-700/60 hover:bg-slate-700 text-blue-400 active:scale-90 flex items-center justify-center transition">
+                <i class="fa-solid fa-pen text-xs"></i>
+              </button>
+              <button type="button" onclick="deleteSingleExpense('\${item.id}')" title="Delete" class="w-8 h-8 rounded-lg bg-slate-700/60 hover:bg-red-950/80 text-red-400 active:scale-90 flex items-center justify-center transition">
+                <i class="fa-solid fa-trash-can text-xs"></i>
+              </button>
+            </div>
+          </div>
+        \`;
+        container.appendChild(card);
+      });
+      if (masterExpenses.length === 0) {
+        container.innerHTML = '<div class="text-center text-slate-500 py-8">No expenses logged yet.</div>';
+      }
+      document.getElementById('heroCadTotal').innerText = \`$\${totalCad.toFixed(2)}\`;
+      document.getElementById('heroPhpTotal').innerText = \`₱\${Math.round(totalPhp).toLocaleString()} PHP\`;
+      document.getElementById('historyCount').innerText = masterExpenses.length;
+      if (window.TravelInsights) window.TravelInsights.refresh(masterExpenses);
+    }
+    `;
+
+  const unsafeHtml = baseHtml.replace(renderTotalsBlock, unsafePreFixRenderer);
+  const unsafeResult = executeInBrowser(unsafeHtml);
+  assert.equal(unsafeResult.status, 'fail', 'Expected unsafe innerHTML renderer to fail security regression check');
+  assert.ok(unsafeResult.error, 'Expected unsafe innerHTML renderer to produce an error');
+});
+
