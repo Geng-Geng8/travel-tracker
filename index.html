@@ -2,8 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PHP & CAD Travel Tracker</title>
+  <link rel="stylesheet" href="insights.css">
 
   <!-- App Icons & PWA Metadata -->
   <link rel="icon" type="image/png" href="1-CAD-PHP-AppIcon.png">
@@ -109,6 +110,16 @@
       </div>
     </header>
 
+    <nav class="app-tabs" role="tablist" aria-label="Travel Tracker pages">
+      <button id="expenseTab" class="app-tab" type="button" role="tab" aria-selected="true" aria-controls="expensePage" tabindex="0">
+        <i class="fa-solid fa-plus" aria-hidden="true"></i> Add expense
+      </button>
+      <button id="insightsTab" class="app-tab" type="button" role="tab" aria-selected="false" aria-controls="insightsPage" tabindex="-1">
+        <i class="fa-solid fa-chart-pie" aria-hidden="true"></i> Insights
+      </button>
+    </nav>
+
+    <div id="expensePage" role="tabpanel" aria-labelledby="expenseTab" class="space-y-4">
     <!-- Total Spending Card -->
     <section class="glass-card rounded-3xl p-5 relative overflow-hidden shadow-2xl border border-amber-500/20">
       <div class="absolute -right-6 -bottom-6 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl pointer-events-none"></div>
@@ -314,6 +325,44 @@
       </div>
 
     </form>
+    </div>
+
+    <section id="insightsPage" role="tabpanel" aria-labelledby="insightsTab" hidden>
+      <div class="insights-heading">
+        <div><p class="insights-eyebrow">YOUR MONEY, AT A GLANCE</p><h2>Spending insights</h2><p class="insights-muted">A clearer picture of where it all goes.</p></div>
+        <div class="insights-currency" role="group" aria-label="Chart currency">
+          <button type="button" data-currency="CAD" aria-pressed="true">CAD</button>
+          <button type="button" data-currency="PHP" aria-pressed="false">PHP</button>
+        </div>
+      </div>
+
+      <div class="insights-filters">
+        <label>Period<select id="insightsPeriod"><option value="all">All time</option><option value="month">This month</option><option value="30days">Last 30 days</option><option value="custom">Custom dates</option></select></label>
+        <label>Bucket<select id="insightsBucket"><option value="all">All buckets</option></select></label>
+        <label>Category<select id="insightsCategory"><option value="all">All categories</option></select></label>
+        <label>Payment<select id="insightsPayment"><option value="all">All methods</option></select></label>
+        <div id="insightsCustomDates" class="insights-custom-dates" hidden>
+          <label>From<input id="insightsStart" type="date"></label><label>To<input id="insightsEnd" type="date"></label>
+        </div>
+      </div>
+      <div class="insights-filter-summary"><p id="insightsScope" aria-live="polite"></p><button id="insightsReset" type="button">Reset filters</button></div>
+      <p id="insightsWarning" class="insights-warning" role="status" hidden></p>
+
+      <div id="insightsContent">
+        <div class="insights-stats">
+          <article class="insights-stat insights-stat-primary"><p class="insights-eyebrow">TOTAL SPENT</p><p id="insightsTotal" class="insights-big-number"></p><p id="insightsCount" class="insights-muted"></p></article>
+          <article class="insights-stat"><p class="insights-eyebrow">TOP CATEGORY</p><p id="insightsTop" class="insights-stat-value"></p><p id="insightsTopShare" class="insights-muted"></p></article>
+          <article class="insights-stat"><p class="insights-eyebrow">DAILY AVERAGE</p><p id="insightsAverage" class="insights-stat-value"></p><p id="insightsAverageNote" class="insights-muted"></p></article>
+        </div>
+        <div class="insights-chart-grid">
+          <article class="insights-card"><div class="insights-card-heading"><div><h3>Where it goes</h3><p class="insights-muted">Your spending by category</p></div><span class="insights-tag">SHARE</span></div><div id="insightsDonut" class="insights-donut"></div><div id="insightsLegend" class="insights-legend"></div></article>
+          <article class="insights-card"><div class="insights-card-heading"><div><h3>Category breakdown</h3><p class="insights-muted">Select a category to take a closer look</p></div></div><div id="insightsBreakdown" class="insights-breakdown"></div></article>
+        </div>
+        <article class="insights-card insights-trend-card"><div class="insights-card-heading"><div><h3>Spending over time</h3><p id="insightsTrendNote" class="insights-muted"></p></div><span id="insightsTrendUnit" class="insights-tag"></span></div><div id="insightsTrend" class="insights-trend"></div><details class="insights-trend-details"><summary>View exact amounts</summary><div id="insightsTrendTable"></div></details></article>
+      </div>
+      <div id="insightsEmpty" class="insights-empty" hidden><span class="insights-empty-icon" aria-hidden="true">◔</span><h3 id="insightsEmptyTitle">Your next expense starts the story</h3><p id="insightsEmptyText"></p><button id="insightsEmptyAction" type="button" class="insights-action">Add an expense</button></div>
+      <p class="insights-footnote">Calculated from your saved expense amounts. Updates when you save, edit, delete, or sync.</p>
+    </section>
 
   </main>
 
@@ -856,6 +905,7 @@
       document.getElementById('heroCadTotal').innerText = `$${totalCad.toFixed(2)}`;
       document.getElementById('heroPhpTotal').innerText = `₱${Math.round(totalPhp).toLocaleString()} PHP`;
       document.getElementById('historyCount').innerText = masterExpenses.length;
+      if (window.TravelInsights) window.TravelInsights.refresh(masterExpenses);
     }
 
     function openSettingsModal() {
@@ -927,5 +977,7 @@
       });
     }
   </script>
+  <script src="insights-data.js"></script>
+  <script src="insights.js"></script>
 </body>
 </html>
