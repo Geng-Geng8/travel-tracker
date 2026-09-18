@@ -31,12 +31,12 @@
     return select.value;
   }
   function updateOptions() {
-    const rows = data.normalize(records, filters.currency).rows;
-    filters.bucket = options('insightsBucket', rows.map(row => row.bucket), filters.bucket, 'All buckets');
-    const relevant = rows.filter(row => filters.bucket === 'all' || row.bucket === filters.bucket);
+    const labels = data.recordLabels(records);
+    filters.bucket = options('insightsBucket', labels.map(row => row.bucket), filters.bucket, 'All buckets');
+    const relevant = labels.filter(row => filters.bucket === 'all' || row.bucket === filters.bucket);
     filters.category = options('insightsCategory', relevant.map(row => row.category), filters.category, 'All categories');
-    filters.payment = options('insightsPayment', rows.map(row => row.payment), filters.payment, 'All methods');
-    const names = [...new Set(rows.map(row => row.category))].sort();
+    filters.payment = options('insightsPayment', labels.map(row => row.payment), filters.payment, 'All methods');
+    const names = [...new Set(labels.map(row => row.category))].sort();
     const familiar = ['Travel', 'Eating Out', 'Grocery', 'Entertainment', 'Gifts', 'Car & Transportation'];
     const ordered = [...familiar, ...names.filter(name => !familiar.includes(name))];
     colors = new Map(ordered.map((name, index) => [name, palette[index % palette.length]]));

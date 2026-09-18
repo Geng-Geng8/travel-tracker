@@ -17,9 +17,20 @@
     }
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
+  const MONTHS = {
+    jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
+    jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12'
+  };
   function parseDay(value) {
-    const key = String(value || '').slice(0, 10);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return null;
+    const str = String(value || '').trim();
+    let key = str.slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) {
+      const match = str.match(/^(?:[A-Za-z]{3}\s+)?([A-Za-z]{3})\s+(\d{1,2})\s+(\d{4})\b/);
+      if (!match) return null;
+      const month = MONTHS[match[1].toLowerCase()];
+      if (!month) return null;
+      key = `${match[3]}-${month}-${match[2].padStart(2, '0')}`;
+    }
     const time = Date.parse(key + 'T00:00:00Z');
     return Number.isFinite(time) && new Date(time).toISOString().slice(0, 10) === key ? key : null;
   }
@@ -104,5 +115,13 @@
     }
     return { total, count: rows.length, categories, start, end, days, average: days ? total / days : 0, trend, unit, skipped: normalized.skipped };
   }
-  return { dateKey, parseDay, addDays, bounds, normalize, summarize, parseAmount };
+  function recordLabels(records) {
+    const list = Array.isArray(records) ? records : [];
+    return list.map(record => ({
+      bucket: label(record && record.bucket, 'Other'),
+      category: label(record && record.category, 'Uncategorized'),
+      payment: label(record && (record.payment_method || record.payment), 'Unknown')
+    }));
+  }
+  return { dateKey, parseDay, addDays, bounds, normalize, summarize, parseAmount, recordLabels };
 });

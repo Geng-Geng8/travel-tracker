@@ -147,6 +147,106 @@ test('production date behavior uses local device calendar date without shifting 
   }
 });
 
+test('historical Google Sheet records normalize correctly, preserve calendar dates without timezone shifting, and retain dropdown options', () => {
+  const rootDir = path.resolve(__dirname, '..');
+  const historicalRecord = {
+    id: '1786806972932',
+    date: 'Sun Jul 19 2026 00:00:00 GMT-0400 (Daylight na Oras sa Silangan ng Hilagang Amerika)',
+    cost_php: 1250,
+    cost_cad: 28.38,
+    exchange_rate: 0.0227,
+    payment_method: 'Credit Card',
+    bucket: 'Play',
+    category: 'Eating Out',
+    item: 'Synthetic Merchant',
+    notes: 'Synthetic Note'
+  };
+
+  // 1. Historical record normalizes correctly in CAD and PHP
+  const normCad = data.normalize([historicalRecord], 'CAD');
+  assert.equal(normCad.skipped, 0);
+  assert.equal(normCad.rows.length, 1);
+  assert.equal(normCad.rows[0].cents, 2838);
+  assert.equal(normCad.rows[0].date, '2026-07-19');
+  assert.equal(normCad.rows[0].bucket, 'Play');
+  assert.equal(normCad.rows[0].category, 'Eating Out');
+  assert.equal(normCad.rows[0].payment, 'Credit Card');
+
+  const normPhp = data.normalize([historicalRecord], 'PHP');
+  assert.equal(normPhp.skipped, 0);
+  assert.equal(normPhp.rows.length, 1);
+  assert.equal(normPhp.rows[0].cents, 125000);
+  assert.equal(normPhp.rows[0].date, '2026-07-19');
+
+  // 2. Date remains the correct calendar day across generic timezones without timezone shifting
+  const testTzs = ['America/Toronto', 'Asia/Manila', 'UTC', 'Pacific/Auckland', 'Pacific/Honolulu'];
+  for (const tz of testTzs) {
+    const childScript = `
+      const data = require('./insights-data.js');
+      const parsed = data.parseDay('${historicalRecord.date}');
+      if (parsed !== '2026-07-19') throw new Error('Expected 2026-07-19, got ' + parsed + ' in ' + '${tz}');
+    `;
+    const res = cp.spawnSync(process.execPath, ['-e', childScript], {
+      cwd: rootDir,
+      env: { ...process.env, TZ: tz },
+      timeout: 5000
+    });
+    assert.equal(res.status, 0, `Date timezone shift detected in ${tz}: ${res.stderr.toString()}`);
+  }
+
+  // 3. CAD/PHP values parse correctly from numbers and valid numeric strings
+  assert.equal(data.parseAmount(historicalRecord.cost_cad), 28.38);
+  assert.equal(data.parseAmount(historicalRecord.cost_php), 1250);
+  assert.equal(data.parseAmount('28.38'), 28.38);
+  assert.equal(data.parseAmount('1250'), 1250);
+
+  // 4. Bucket, category, and payment options remain available independently of currency usability
+  const partialRecord = {
+    id: '1786806972933',
+    date: 'Mon Jul 20 2026 00:00:00 GMT-0400 (Eastern Daylight Time)',
+    cost_php: 500,
+    cost_cad: null, // missing/unusable CAD amount
+    bucket: 'Giving',
+    category: 'Charity',
+    payment_method: 'Cash'
+  };
+  const labels = data.recordLabels([historicalRecord, partialRecord]);
+  assert.deepEqual([...new Set(labels.map(l => l.bucket))].sort(), ['Giving', 'Play']);
+  assert.deepEqual([...new Set(labels.map(l => l.category))].sort(), ['Charity', 'Eating Out']);
+  assert.deepEqual([...new Set(labels.map(l => l.payment))].sort(), ['Cash', 'Credit Card']);
+
+  // Normalizing CAD skips partialRecord, but options were preserved above
+  const mixedCad = data.normalize([historicalRecord, partialRecord], 'CAD');
+  assert.equal(mixedCad.skipped, 1);
+  assert.equal(mixedCad.rows.length, 1);
+
+  // 5. Genuinely invalid records are still excluded
+  const invalidRecords = [
+    { date: 'not-a-date', cost_cad: 10 },
+    { date: 'Sun Feb 29 2026 00:00:00 GMT-0400', cost_cad: 10 },
+    { date: 'Sun Jul 19 2026 00:00:00 GMT-0400', cost_cad: -10 },
+    { date: 'Sun Jul 19 2026 00:00:00 GMT-0400', cost_cad: NaN }
+  ];
+  const normInvalid = data.normalize(invalidRecords, 'CAD');
+  assert.equal(normInvalid.rows.length, 0);
+  assert.equal(normInvalid.skipped, 4);
+
+  // 6. Current/new record format still works
+  const newRecord = {
+    id: 'c0a1b2c3',
+    date: '2026-09-18',
+    cost_cad: 45.50,
+    cost_php: 2000,
+    bucket: 'Necessity',
+    category: 'Grocery',
+    payment_method: 'Debit'
+  };
+  const normNew = data.normalize([newRecord], 'CAD');
+  assert.equal(normNew.skipped, 0);
+  assert.equal(normNew.rows[0].date, '2026-09-18');
+  assert.equal(normNew.rows[0].cents, 4550);
+});
+
 function findBrowser() {
   if (process.env.CHROME_BIN && fs.existsSync(process.env.CHROME_BIN)) return process.env.CHROME_BIN;
   if (process.env.BROWSER_BIN && fs.existsSync(process.env.BROWSER_BIN)) return process.env.BROWSER_BIN;
