@@ -154,15 +154,20 @@ function createTripManager(storage) {
     }
     profiles.activeTripId = target.id;
     saveTripProfiles(profiles);
+    loadExchangeRateForCurrency(target.currency);
   }
+
+  let activeExchangeRateCurrency = 'PHP';
+  let activeExchangeRate = 0.0227;
+  let exchangeRateRequestId = 0;
 
   function getCustomExchangeRate(currency) {
     const c = (currency || LEGACY_CURRENCY).toUpperCase();
     const stored = storage.getItem(`custom_exchange_rate_${c}`);
-    if (stored && !isNaN(stored)) return parseFloat(stored);
+    if (stored && !isNaN(stored) && Number(stored) > 0) return parseFloat(stored);
     if (c === 'PHP') {
       const legacy = storage.getItem('custom_exchange_rate');
-      if (legacy && !isNaN(legacy)) return parseFloat(legacy);
+      if (legacy && !isNaN(legacy) && Number(legacy) > 0) return parseFloat(legacy);
     }
     return null;
   }
@@ -176,6 +181,80 @@ function createTripManager(storage) {
       storage.removeItem(`custom_exchange_rate_${c}`);
       if (c === 'PHP') storage.removeItem('custom_exchange_rate');
     }
+  }
+
+  function getCachedLiveExchangeRate(currency) {
+    const c = (currency || '').toUpperCase();
+    if (!c) return null;
+    const stored = storage.getItem(`live_exchange_rate_${c}`);
+    if (stored && !isNaN(stored) && Number(stored) > 0) {
+      return parseFloat(stored);
+    }
+    return null;
+  }
+
+  function setCachedLiveExchangeRate(currency, rate) {
+    const c = (currency || '').toUpperCase();
+    if (!c) return;
+    if (rate && !isNaN(rate) && Number(rate) > 0) {
+      storage.setItem(`live_exchange_rate_${c}`, String(rate));
+    } else {
+      storage.removeItem(`live_exchange_rate_${c}`);
+    }
+  }
+
+  function getEffectiveExchangeRate(currency) {
+    const c = (currency || getActiveTrip().currency || '').toUpperCase();
+    if (!c) return null;
+
+    // 1. Custom rate for that exact currency
+    const custom = getCustomExchangeRate(c);
+    if (custom !== null && !isNaN(custom) && custom > 0) return custom;
+
+    // 2. Cached live rate for that exact currency
+    const cached = getCachedLiveExchangeRate(c);
+    if (cached !== null && !isNaN(cached) && cached > 0) return cached;
+
+    // 3. CAD => 1
+    if (c === 'CAD') return 1.0;
+
+    // 4. PHP legacy default only for PHP
+    if (c === 'PHP') return 0.0227;
+
+    // 5. Otherwise no valid rate
+    return null;
+  }
+
+  async function loadExchangeRateForCurrency(currency, fetchFn) {
+    const c = (currency || getActiveTrip().currency || '').toUpperCase();
+    activeExchangeRateCurrency = c;
+    activeExchangeRate = getEffectiveExchangeRate(c);
+
+    if (c === 'CAD' || getCustomExchangeRate(c) !== null) {
+      return activeExchangeRate;
+    }
+
+    const reqId = ++exchangeRateRequestId;
+    if (!fetchFn) {
+      return activeExchangeRate;
+    }
+
+    try {
+      const data = await fetchFn(c);
+      if (data && data.rates && typeof data.rates.CAD === 'number' && data.rates.CAD > 0) {
+        const rateVal = data.rates.CAD;
+        setCachedLiveExchangeRate(c, rateVal);
+
+        const currentActive = (getActiveTrip().currency || '').toUpperCase();
+        if (reqId === exchangeRateRequestId && currentActive === c && getCustomExchangeRate(c) === null) {
+          activeExchangeRate = rateVal;
+          activeExchangeRateCurrency = c;
+        }
+      }
+    } catch (err) {
+      // ignore
+    }
+    return activeExchangeRate;
   }
 
   function getActiveTripExpenses(masterExpenses) {
@@ -216,6 +295,30 @@ function createTripManager(storage) {
     }
   }
 
+  function getConvertedPreview(val, inputCurrency, editingExpenseId, editingRate, masterExpenses) {
+    const activeCurr = (getActiveTrip().currency || '').toUpperCase();
+    let rate;
+    if (editingExpenseId && editingRate !== null && editingRate !== undefined && editingRate > 0) {
+      rate = editingRate;
+    } else if (activeExchangeRateCurrency === activeCurr && activeExchangeRate !== null && activeExchangeRate > 0) {
+      rate = activeExchangeRate;
+    } else {
+      rate = getEffectiveExchangeRate(activeCurr);
+    }
+
+    if (activeCurr !== 'CAD' && (!rate || isNaN(rate) || rate <= 0)) {
+      return 'Rate unavailable';
+    }
+    if (activeCurr === 'CAD') {
+      return formatCurrency(val, 'CAD');
+    }
+    if (inputCurrency === 'CAD') {
+      return formatCurrency(val / rate, activeCurr);
+    } else {
+      return formatCurrency(val * rate, 'CAD');
+    }
+  }
+
   function prepareExpenseRecord({ editingExpenseId, masterExpenses, inputVal, inputCurrency, rate }) {
     let tripId;
     let currencyLocal;
@@ -226,18 +329,34 @@ function createTripManager(storage) {
       tripId = data.getExpenseTripId(existing);
       currencyLocal = data.getExpenseLocalCurrency(existing);
       if (!rateToUse) {
-        rateToUse = existing.exchange_rate || (currencyLocal === 'PHP' ? 0.0227 : 1.0);
+        rateToUse = (existing && existing.exchange_rate > 0) ? parseFloat(existing.exchange_rate) : getEffectiveExchangeRate(currencyLocal);
       }
     } else {
       const activeTrip = getActiveTrip();
       tripId = activeTrip.id;
       currencyLocal = activeTrip.currency;
+      if (!rateToUse) {
+        if (activeExchangeRateCurrency === currencyLocal && activeExchangeRate !== null && activeExchangeRate > 0) {
+          rateToUse = activeExchangeRate;
+        } else {
+          rateToUse = getEffectiveExchangeRate(currencyLocal);
+        }
+      }
+    }
+
+    if (currencyLocal === 'CAD') {
+      rateToUse = 1.0;
+    }
+
+    // Fail closed when rate is unavailable
+    if (!rateToUse || isNaN(rateToUse) || rateToUse <= 0) {
+      throw new Error('Exchange rate unavailable. Connect to the internet or set a custom rate.');
     }
 
     let costLocal, costCad;
     if (inputCurrency === 'CAD') {
       costCad = inputVal;
-      costLocal = parseFloat((rateToUse > 0 ? (inputVal / rateToUse) : 0).toFixed(2));
+      costLocal = parseFloat((inputVal / rateToUse).toFixed(2));
     } else {
       costLocal = inputVal;
       costCad = parseFloat((inputVal * rateToUse).toFixed(2));
@@ -277,6 +396,13 @@ function createTripManager(storage) {
     promptTripCurrency,
     getCustomExchangeRate,
     setCustomExchangeRate,
+    getCachedLiveExchangeRate,
+    setCachedLiveExchangeRate,
+    getEffectiveExchangeRate,
+    loadExchangeRateForCurrency,
+    getActiveExchangeRate: () => activeExchangeRate,
+    getActiveExchangeRateCurrency: () => activeExchangeRateCurrency,
+    getConvertedPreview,
     getActiveTripExpenses,
     computeTotals,
     formatCurrency,
@@ -686,4 +812,203 @@ test('12. existing 93 legacy Philippines records require no migration', () => {
     assert.equal(row.cost_local, undefined, 'Original records remain strictly unmutated');
     assert.equal(row.currency_local, undefined, 'Original records remain strictly unmutated');
   }
+});
+
+// -------------------------------------------------------------
+// Targeted Test 13: switching PHP -> JPY offline does NOT reuse the PHP rate
+// -------------------------------------------------------------
+test('13. switching PHP -> JPY offline does NOT reuse the PHP rate', async () => {
+  const storage = createMockStorage({
+    travel_trip_profiles_v1: JSON.stringify({
+      version: 1,
+      activeTripId: 'philippines-2026',
+      trips: [
+        { id: 'philippines-2026', name: 'Philippines 2026', currency: 'PHP' },
+        { id: 'japan-2027', name: 'Japan 2027', currency: 'JPY' }
+      ]
+    })
+  });
+  const manager = createTripManager(storage);
+
+  // Active trip is initially Philippines with PHP rate (0.0227)
+  assert.equal(manager.getActiveTripId(), 'philippines-2026');
+  assert.equal(manager.getActiveExchangeRateCurrency(), 'PHP');
+  assert.equal(manager.getActiveExchangeRate(), 0.0227);
+
+  // Switch to Japan offline (no live fetch fn provided, no custom JPY rate, no cached JPY rate)
+  manager.switchActiveTrip('japan-2027');
+
+  assert.equal(manager.getActiveTripId(), 'japan-2027');
+  assert.equal(manager.getActiveExchangeRateCurrency(), 'JPY');
+  // Proves active rate is null and does NOT retain 0.0227 PHP rate!
+  assert.equal(manager.getActiveExchangeRate(), null, 'JPY must NOT inherit or retain the PHP exchange rate');
+});
+
+// -------------------------------------------------------------
+// Targeted Test 14: cached JPY rate is used offline only for JPY
+// -------------------------------------------------------------
+test('14. cached JPY rate is used offline only for JPY', async () => {
+  const storage = createMockStorage({
+    travel_trip_profiles_v1: JSON.stringify({
+      version: 1,
+      activeTripId: 'japan-2027',
+      trips: [
+        { id: 'japan-2027', name: 'Japan 2027', currency: 'JPY' }
+      ]
+    }),
+    live_exchange_rate_JPY: '0.0091'
+  });
+  const manager = createTripManager(storage);
+
+  // Loading rate offline for JPY uses cached live rate
+  await manager.loadExchangeRateForCurrency('JPY'); // no live fetch fn (simulating offline)
+  assert.equal(manager.getActiveExchangeRate(), 0.0091, 'Cached JPY rate is used offline for JPY');
+  assert.equal(manager.getEffectiveExchangeRate('JPY'), 0.0091);
+});
+
+// -------------------------------------------------------------
+// Targeted Test 15: cached JPY rate is never used for USD
+// -------------------------------------------------------------
+test('15. cached JPY rate is never used for USD', async () => {
+  const storage = createMockStorage({
+    travel_trip_profiles_v1: JSON.stringify({
+      version: 1,
+      activeTripId: 'usa-2027',
+      trips: [
+        { id: 'japan-2027', name: 'Japan 2027', currency: 'JPY' },
+        { id: 'usa-2027', name: 'USA 2027', currency: 'USD' }
+      ]
+    }),
+    live_exchange_rate_JPY: '0.0091'
+  });
+  const manager = createTripManager(storage);
+
+  // Loading rate offline for USD
+  await manager.loadExchangeRateForCurrency('USD'); // no live fetch fn (offline)
+  assert.equal(manager.getEffectiveExchangeRate('USD'), null, 'USD must not use cached JPY rate');
+  assert.equal(manager.getActiveExchangeRate(), null, 'Active rate for USD must be null when only JPY has a cache');
+});
+
+// -------------------------------------------------------------
+// Targeted Test 16: stale JPY fetch response cannot overwrite a newer USD rate
+// -------------------------------------------------------------
+test('16. stale JPY fetch response cannot overwrite a newer USD rate', async () => {
+  const storage = createMockStorage({
+    travel_trip_profiles_v1: JSON.stringify({
+      version: 1,
+      activeTripId: 'japan-2027',
+      trips: [
+        { id: 'japan-2027', name: 'Japan 2027', currency: 'JPY' },
+        { id: 'usa-2027', name: 'USA 2027', currency: 'USD' }
+      ]
+    })
+  });
+  const manager = createTripManager(storage);
+
+  let resolveJpyFetch;
+  const delayedJpyFetch = () => {
+    return new Promise((resolve) => {
+      resolveJpyFetch = () => resolve({ rates: { CAD: 0.0092 } });
+    });
+  };
+
+  // 1. User starts loading JPY rate
+  const jpyPromise = manager.loadExchangeRateForCurrency('JPY', delayedJpyFetch);
+
+  // 2. User quickly switches to USA (USD) before JPY fetch resolves
+  manager.switchActiveTrip('usa-2027');
+  manager.setCustomExchangeRate('USD', 1.36);
+  await manager.loadExchangeRateForCurrency('USD');
+  assert.equal(manager.getActiveTripId(), 'usa-2027');
+  assert.equal(manager.getActiveExchangeRate(), 1.36);
+
+  // 3. Stale JPY fetch finally resolves late
+  resolveJpyFetch();
+  await jpyPromise;
+
+  // 4. Verify the late JPY response did NOT overwrite the USD active rate
+  assert.equal(manager.getActiveExchangeRateCurrency(), 'USD');
+  assert.equal(manager.getActiveExchangeRate(), 1.36, 'Late JPY response must not overwrite USD rate');
+
+  // Verify JPY rate was nonetheless cached for future JPY use
+  assert.equal(manager.getCachedLiveExchangeRate('JPY'), 0.0092, 'JPY live rate is safely cached per-currency');
+});
+
+// -------------------------------------------------------------
+// Targeted Test 17: new expense cannot save when required rate is unavailable
+// -------------------------------------------------------------
+test('17. new expense cannot save when required rate is unavailable', () => {
+  const storage = createMockStorage({
+    travel_trip_profiles_v1: JSON.stringify({
+      version: 1,
+      activeTripId: 'europe-2027',
+      trips: [
+        { id: 'europe-2027', name: 'Europe 2027', currency: 'EUR' }
+      ]
+    })
+  });
+  const manager = createTripManager(storage);
+  manager.switchActiveTrip('europe-2027');
+
+  // No custom, no cached, no live rate available for EUR
+  assert.equal(manager.getActiveExchangeRate(), null);
+
+  // Preview safety: converted preview displays 'Rate unavailable'
+  const preview = manager.getConvertedPreview(50, 'LOCAL');
+  assert.equal(preview, 'Rate unavailable', 'Preview must show Rate unavailable when rate is missing');
+
+  // Attempting to prepare/save new expense must fail closed
+  assert.throws(() => {
+    manager.prepareExpenseRecord({
+      editingExpenseId: null,
+      masterExpenses: [],
+      inputVal: 50,
+      inputCurrency: 'LOCAL'
+    });
+  }, {
+    message: /Exchange rate unavailable/
+  }, 'Must throw/fail closed without saving when exchange rate is unavailable');
+});
+
+// -------------------------------------------------------------
+// Targeted Test 18: editing an existing expense can still use its stored exchange_rate
+// -------------------------------------------------------------
+test('18. editing an existing expense can still use its stored exchange_rate', () => {
+  const storage = createMockStorage({
+    travel_trip_profiles_v1: JSON.stringify({
+      version: 1,
+      activeTripId: 'japan-2027',
+      trips: [
+        { id: 'japan-2027', name: 'Japan 2027', currency: 'JPY' }
+      ]
+    })
+  });
+  const manager = createTripManager(storage);
+  manager.switchActiveTrip('japan-2027');
+
+  // Active rate for JPY is null (offline, no cache)
+  assert.equal(manager.getActiveExchangeRate(), null);
+
+  const existingExpense = {
+    id: 'exp-jpy-1',
+    trip_id: 'japan-2027',
+    currency_local: 'JPY',
+    cost_local: 3000,
+    cost_cad: 27.00,
+    exchange_rate: 0.0090
+  };
+
+  // Editing existing expense preserves stored exchange_rate
+  const updated = manager.prepareExpenseRecord({
+    editingExpenseId: 'exp-jpy-1',
+    masterExpenses: [existingExpense],
+    inputVal: 3500,
+    inputCurrency: 'LOCAL'
+    // no rate passed: should use existing.exchange_rate (0.0090)
+  });
+
+  assert.equal(updated.id, 'exp-jpy-1');
+  assert.equal(updated.exchange_rate, 0.0090, 'Uses existing expense stored rate');
+  assert.equal(updated.cost_local, 3500);
+  assert.equal(updated.cost_cad, 31.50); // 3500 * 0.0090 = 31.50
 });

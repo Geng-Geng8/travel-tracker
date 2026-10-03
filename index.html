@@ -569,7 +569,9 @@
 
     // State Variables
     let exchangeRateCadPerPhp = 0.0227; // Backward compatibility
+    let activeExchangeRateCurrency = 'PHP';
     let activeExchangeRate = 0.0227;    // CAD value per 1 unit of active trip's local currency
+    let exchangeRateRequestId = 0;      // Sequence token to prevent stale async responses
     let currentInputCurrency = 'LOCAL'; // 'LOCAL' or 'CAD'
     let selectedPaymentMethod = 'Cash';
     let selectedBucket = 'Play';
@@ -950,10 +952,10 @@
     function getCustomExchangeRate(currency) {
       const c = (currency || LEGACY_CURRENCY).toUpperCase();
       const stored = localStorage.getItem(`custom_exchange_rate_${c}`);
-      if (stored && !isNaN(stored)) return parseFloat(stored);
+      if (stored && !isNaN(stored) && Number(stored) > 0) return parseFloat(stored);
       if (c === 'PHP') {
         const legacy = localStorage.getItem('custom_exchange_rate');
-        if (legacy && !isNaN(legacy)) return parseFloat(legacy);
+        if (legacy && !isNaN(legacy) && Number(legacy) > 0) return parseFloat(legacy);
       }
       return null;
     }
@@ -969,53 +971,120 @@
       }
     }
 
-    async function loadExchangeRateForCurrency(currency) {
-      const c = (currency || getActiveTrip().currency).toUpperCase();
+    function getCachedLiveExchangeRate(currency) {
+      const c = (currency || '').toUpperCase();
+      if (!c) return null;
+      const stored = localStorage.getItem(`live_exchange_rate_${c}`);
+      if (stored && !isNaN(stored) && Number(stored) > 0) {
+        return parseFloat(stored);
+      }
+      return null;
+    }
+
+    function setCachedLiveExchangeRate(currency, rate) {
+      const c = (currency || '').toUpperCase();
+      if (!c) return;
+      if (rate && !isNaN(rate) && Number(rate) > 0) {
+        localStorage.setItem(`live_exchange_rate_${c}`, String(rate));
+      } else {
+        localStorage.removeItem(`live_exchange_rate_${c}`);
+      }
+    }
+
+    function getEffectiveExchangeRate(currency) {
+      const c = (currency || getActiveTrip().currency || '').toUpperCase();
+      if (!c) return null;
+
+      // Priority 1: Custom rate for that exact currency
       const custom = getCustomExchangeRate(c);
-      if (custom) {
-        activeExchangeRate = custom;
-        if (c === 'PHP') exchangeRateCadPerPhp = custom;
-        updateRateDisplay(c, custom);
-        handleCostInputChange();
+      if (custom !== null && !isNaN(custom) && custom > 0) {
+        return custom;
+      }
+
+      // Priority 2: Cached live rate for that exact currency
+      const cached = getCachedLiveExchangeRate(c);
+      if (cached !== null && !isNaN(cached) && cached > 0) {
+        return cached;
+      }
+
+      // Priority 3: CAD => 1
+      if (c === 'CAD') {
+        return 1.0;
+      }
+
+      // Priority 4: PHP legacy default only for PHP
+      if (c === 'PHP') {
+        return 0.0227;
+      }
+
+      // Priority 5: Otherwise no valid rate
+      return null;
+    }
+
+    async function loadExchangeRateForCurrency(currency) {
+      const c = (currency || getActiveTrip().currency || '').toUpperCase();
+      activeExchangeRateCurrency = c;
+
+      // Immediately determine effective rate based on 1-5 priority
+      const effective = getEffectiveExchangeRate(c);
+      activeExchangeRate = effective;
+      if (c === 'PHP' && effective !== null) {
+        exchangeRateCadPerPhp = effective;
+      }
+
+      updateRateDisplay(c, activeExchangeRate);
+      handleCostInputChange();
+
+      // If CAD or custom rate exists, no live fetch needed
+      if (c === 'CAD' || getCustomExchangeRate(c) !== null) {
         return;
       }
 
-      if (c === 'CAD') {
-        activeExchangeRate = 1.0;
-        updateRateDisplay(c, 1.0);
-        handleCostInputChange();
-        return;
-      }
+      // Sequence token to prevent stale async response from overwriting newer trip/currency
+      const reqId = ++exchangeRateRequestId;
 
       if (!navigator.onLine) {
-        updateRateDisplay(c, activeExchangeRate);
         return;
       }
 
       try {
         const res = await fetch(`https://open.er-api.com/v6/latest/${encodeURIComponent(c)}`);
         const data = await res.json();
-        if (data && data.rates && typeof data.rates.CAD === 'number') {
-          activeExchangeRate = data.rates.CAD;
-          if (c === 'PHP') exchangeRateCadPerPhp = data.rates.CAD;
-          updateRateDisplay(c, activeExchangeRate);
-          handleCostInputChange();
+        if (data && data.rates && typeof data.rates.CAD === 'number' && data.rates.CAD > 0) {
+          const rateVal = data.rates.CAD;
+          // Cache live rate per currency
+          setCachedLiveExchangeRate(c, rateVal);
+
+          // Only apply if this request is still the newest request and active currency is still this currency
+          const currentActive = (getActiveTrip().currency || '').toUpperCase();
+          if (reqId === exchangeRateRequestId && currentActive === c && getCustomExchangeRate(c) === null) {
+            activeExchangeRate = rateVal;
+            activeExchangeRateCurrency = c;
+            if (c === 'PHP') exchangeRateCadPerPhp = rateVal;
+            updateRateDisplay(c, activeExchangeRate);
+            handleCostInputChange();
+          }
         }
       } catch (err) {
         console.warn(`Failed to fetch exchange rate for ${c}:`, err);
-        updateRateDisplay(c, activeExchangeRate);
       }
     }
 
     function updateRateDisplay(currency, rate) {
-      const c = (currency || getActiveTrip().currency).toUpperCase();
-      const r = (rate !== undefined && rate > 0) ? rate : activeExchangeRate;
+      const c = (currency || getActiveTrip().currency || '').toUpperCase();
+      const r = (rate !== undefined && rate !== null && rate > 0)
+        ? rate
+        : (activeExchangeRateCurrency === c ? activeExchangeRate : getEffectiveExchangeRate(c));
       const textEl = document.getElementById('displayRateText');
       const currEl = document.getElementById('displayRateCurrency');
       if (currEl) currEl.textContent = c;
-      if (textEl && r > 0) {
-        const unitsPerCad = (1 / r);
-        textEl.innerText = unitsPerCad >= 100 ? Math.round(unitsPerCad).toLocaleString() : unitsPerCad.toFixed(2);
+      if (textEl) {
+        if (r !== null && !isNaN(r) && r > 0) {
+          const unitsPerCad = (1 / r);
+          textEl.innerText = unitsPerCad >= 100 ? Math.round(unitsPerCad).toLocaleString() : unitsPerCad.toFixed(2);
+        } else {
+          textEl.innerText = '—';
+        }
       }
     }
 
@@ -1097,7 +1166,24 @@
       if (!preview) return;
 
       const activeCurr = (editingExpenseCurrency || getActiveTrip().currency).toUpperCase();
-      const rate = (editingExpenseRate !== null && editingExpenseRate > 0) ? editingExpenseRate : activeExchangeRate;
+      let rate;
+      if (editingExpenseId && editingExpenseRate !== null && editingExpenseRate > 0) {
+        rate = editingExpenseRate;
+      } else if (activeExchangeRateCurrency === activeCurr && activeExchangeRate !== null && activeExchangeRate > 0) {
+        rate = activeExchangeRate;
+      } else {
+        rate = getEffectiveExchangeRate(activeCurr);
+      }
+
+      if (activeCurr !== 'CAD' && (!rate || isNaN(rate) || rate <= 0)) {
+        preview.innerText = 'Rate unavailable';
+        return;
+      }
+
+      if (activeCurr === 'CAD') {
+        preview.innerText = formatCurrency(val, 'CAD');
+        return;
+      }
 
       if (currentInputCurrency === 'CAD') {
         const localVal = (rate > 0) ? (val / rate) : 0;
@@ -1181,9 +1267,9 @@
       editingExpenseId = item.id;
       editingExpenseTripId = getExpenseTripId(item);
       editingExpenseCurrency = getExpenseLocalCurrency(item);
-      editingExpenseRate = (item.exchange_rate && !isNaN(item.exchange_rate))
+      editingExpenseRate = (item.exchange_rate && !isNaN(item.exchange_rate) && Number(item.exchange_rate) > 0)
         ? parseFloat(item.exchange_rate)
-        : (getCustomExchangeRate(editingExpenseCurrency) || (editingExpenseCurrency === 'PHP' ? 0.0227 : activeExchangeRate));
+        : getEffectiveExchangeRate(editingExpenseCurrency);
 
       const localVal = getExpenseLocalCost(item);
       const cadVal = InsightsData.parseAmount(item.cost_cad);
@@ -1223,7 +1309,9 @@
       editingExpenseRate = null;
       document.getElementById('editingBanner').classList.add('hidden');
       document.getElementById('submitBtnText').innerText = 'Save Expense';
-      setupInputCurrencyToggle(getActiveTrip().currency);
+      const activeTrip = getActiveTrip();
+      setupInputCurrencyToggle(activeTrip.currency);
+      loadExchangeRateForCurrency(activeTrip.currency);
       resetFormInputs();
     }
 
@@ -1274,18 +1362,32 @@
         currencyLocal = editingExpenseCurrency || getExpenseLocalCurrency(existing);
         rateToUse = (editingExpenseRate !== null && editingExpenseRate > 0)
           ? editingExpenseRate
-          : (existing.exchange_rate || getCustomExchangeRate(currencyLocal) || (currencyLocal === 'PHP' ? 0.0227 : activeExchangeRate));
+          : (existing && existing.exchange_rate > 0 ? parseFloat(existing.exchange_rate) : getEffectiveExchangeRate(currencyLocal));
       } else {
         const activeTrip = getActiveTrip();
         tripId = activeTrip.id;
         currencyLocal = activeTrip.currency;
-        rateToUse = activeExchangeRate;
+        if (activeExchangeRateCurrency === currencyLocal && activeExchangeRate !== null && activeExchangeRate > 0) {
+          rateToUse = activeExchangeRate;
+        } else {
+          rateToUse = getEffectiveExchangeRate(currencyLocal);
+        }
+      }
+
+      if (currencyLocal === 'CAD') {
+        rateToUse = 1.0;
+      }
+
+      // Fail closed when rate is unavailable: do not save using 0 or wrong rate, preserve form inputs
+      if (!rateToUse || isNaN(rateToUse) || rateToUse <= 0) {
+        showToast('Exchange rate unavailable. Connect to the internet or set a custom rate.', true);
+        return;
       }
 
       let costLocal, costCad;
       if (currentInputCurrency === 'CAD') {
         costCad = inputVal;
-        costLocal = parseFloat((rateToUse > 0 ? (inputVal / rateToUse) : 0).toFixed(2));
+        costLocal = parseFloat((inputVal / rateToUse).toFixed(2));
       } else {
         costLocal = inputVal;
         costCad = parseFloat((inputVal * rateToUse).toFixed(2));
@@ -1496,8 +1598,10 @@
       if (pin) localStorage.setItem('gas_pin', pin);
 
       if (customRate && !isNaN(customRate) && Number(customRate) > 0) {
-        setCustomExchangeRate(activeCurr, customRate);
-        activeExchangeRate = parseFloat(customRate);
+        const parsedRate = parseFloat(customRate);
+        setCustomExchangeRate(activeCurr, parsedRate);
+        activeExchangeRate = parsedRate;
+        activeExchangeRateCurrency = activeCurr;
         if (activeCurr === 'PHP') exchangeRateCadPerPhp = activeExchangeRate;
         updateRateDisplay(activeCurr, activeExchangeRate);
       } else {
