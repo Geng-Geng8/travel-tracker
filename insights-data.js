@@ -123,5 +123,13 @@
       payment: label(record && (record.payment_method || record.payment), 'Unknown')
     }));
   }
-  return { dateKey, parseDay, addDays, bounds, normalize, summarize, parseAmount, recordLabels };
+  const LEGACY_TRIP_ID = 'philippines-2026';
+  const LEGACY_TRIP_NAME = 'Philippines 2026';
+  function getExpenseTripId(record) {
+    if (!record || typeof record.trip_id !== 'string' || !record.trip_id.trim()) {
+      return LEGACY_TRIP_ID;
+    }
+    return record.trip_id.trim();
+  }
+  return { dateKey, parseDay, addDays, bounds, normalize, summarize, parseAmount, recordLabels, getExpenseTripId, LEGACY_TRIP_ID, LEGACY_TRIP_NAME };
 });

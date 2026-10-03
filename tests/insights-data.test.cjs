@@ -415,8 +415,8 @@ test('history and insights handle numeric strings, preserve IDs, and render mali
           }
 
           // 10. Rendering numeric strings does not prevent TravelInsights.refresh() from running
-          if (!refreshCalledWith || refreshCalledWith !== masterExpenses) {
-            throw new Error('TravelInsights.refresh() was not called with masterExpenses');
+          if (!refreshCalledWith || refreshCalledWith[0] !== hostileItem) {
+            throw new Error('TravelInsights.refresh() was not called with active trip expenses');
           }
 
           const resultEl = document.createElement('div');
