@@ -111,6 +111,47 @@
       </div>
     </header>
 
+    <!-- Active Trip Selector -->
+    <div class="relative z-30">
+      <div class="glass-card rounded-2xl px-4 py-2.5 flex items-center justify-between shadow-md">
+        <div class="flex items-center gap-2 text-slate-400">
+          <i class="fa-solid fa-location-dot text-amber-400 text-xs"></i>
+          <span class="text-xs uppercase tracking-wider font-bold">Trip</span>
+        </div>
+        <div class="relative">
+          <button 
+            type="button" 
+            id="tripSelectorBtn" 
+            onclick="toggleTripDropdown(event)" 
+            class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 active:scale-95 border border-slate-700/80 text-xs font-bold text-white transition shadow"
+            aria-haspopup="true"
+            aria-expanded="false"
+          >
+            <span id="activeTripName">Philippines 2026</span>
+            <i id="tripChevron" class="fa-solid fa-chevron-down text-[10px] text-amber-400 transition-transform duration-200"></i>
+          </button>
+
+          <!-- Dropdown Menu -->
+          <div 
+            id="tripDropdownMenu" 
+            class="hidden absolute right-0 mt-2 w-56 glass-card bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl py-1.5 z-50 text-xs font-medium backdrop-blur-md"
+          >
+            <div id="tripDropdownList" class="max-h-60 overflow-y-auto space-y-0.5 px-1"></div>
+            <div class="border-t border-slate-800 my-1"></div>
+            <div class="px-1">
+              <button 
+                type="button" 
+                onclick="openNewTripModal()" 
+                class="w-full text-left px-3 py-2 rounded-xl text-amber-400 hover:bg-amber-500/10 font-bold flex items-center gap-2 transition"
+              >
+                <i class="fa-solid fa-plus text-xs"></i> New Trip
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <nav class="app-tabs" role="tablist" aria-label="Travel Tracker pages">
       <button id="expenseTab" class="app-tab" type="button" role="tab" aria-selected="true" aria-controls="expensePage" tabindex="0">
         <i class="fa-solid fa-plus" aria-hidden="true"></i> Add expense
@@ -451,6 +492,43 @@
     </div>
   </div>
 
+  <!-- New Trip Modal -->
+  <div id="newTripModal" onclick="if(event.target === this) closeNewTripModal()" class="fixed inset-0 bg-black/80 backdrop-blur-md hidden z-50 flex items-center justify-center p-4">
+    <div class="glass-card bg-slate-900 border border-slate-700 rounded-3xl p-6 w-full max-w-sm space-y-4 shadow-2xl">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+        <h2 class="text-base font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-map-location-dot text-amber-400"></i> New Trip
+        </h2>
+        <button type="button" onclick="closeNewTripModal()" class="text-slate-400 hover:text-white p-1">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <form id="newTripForm" onsubmit="handleCreateTripSubmit(event)" class="space-y-3 text-xs">
+        <div>
+          <label for="newTripNameInput" class="font-bold text-slate-300 block mb-1">Trip Name</label>
+          <input 
+            id="newTripNameInput" 
+            type="text" 
+            required 
+            placeholder="e.g. Japan 2027" 
+            class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white text-xs focus:border-amber-500 focus:outline-none"
+            autocomplete="off"
+          >
+        </div>
+
+        <div class="pt-2 flex gap-2">
+          <button type="button" onclick="closeNewTripModal()" class="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs transition">
+            Cancel
+          </button>
+          <button type="submit" class="flex-1 py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs transition">
+            Create Trip
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Toast Notification -->
   <div id="toastNotification" class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/95 backdrop-blur-md border border-amber-500/50 text-white px-5 py-3 rounded-full text-xs font-bold shadow-2xl flex items-center gap-2 pointer-events-none transition-all duration-200 opacity-0 -translate-y-2 z-50">
     <i id="toastIcon" class="fa-solid fa-circle-check text-emerald-400 text-base"></i>
@@ -479,6 +557,215 @@
     let masterExpenses = JSON.parse(localStorage.getItem('travel_expenses_log') || '[]');
     let syncQueue = JSON.parse(localStorage.getItem('sync_queue') || '[]');
 
+    // TRIP PROFILES (V1)
+    const LEGACY_TRIP_ID = (window.InsightsData && window.InsightsData.LEGACY_TRIP_ID) || 'philippines-2026';
+    const LEGACY_TRIP_NAME = (window.InsightsData && window.InsightsData.LEGACY_TRIP_NAME) || 'Philippines 2026';
+    const TRIP_PROFILES_STORAGE_KEY = 'travel_trip_profiles_v1';
+
+    function getExpenseTripId(record) {
+      if (window.InsightsData && typeof window.InsightsData.getExpenseTripId === 'function') {
+        return window.InsightsData.getExpenseTripId(record);
+      }
+      if (!record || typeof record.trip_id !== 'string' || !record.trip_id.trim()) {
+        return LEGACY_TRIP_ID;
+      }
+      return record.trip_id.trim();
+    }
+
+    function getTripProfiles() {
+      try {
+        const raw = localStorage.getItem(TRIP_PROFILES_STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && Array.isArray(parsed.trips) && parsed.trips.length > 0) {
+            if (!parsed.trips.some(t => t.id === LEGACY_TRIP_ID)) {
+              parsed.trips.unshift({ id: LEGACY_TRIP_ID, name: LEGACY_TRIP_NAME });
+            }
+            if (!parsed.activeTripId || !parsed.trips.some(t => t.id === parsed.activeTripId)) {
+              parsed.activeTripId = parsed.trips[0].id;
+            }
+            parsed.version = 1;
+            return parsed;
+          }
+        }
+      } catch (err) {
+        console.warn('Error reading trip profiles:', err);
+      }
+      return {
+        version: 1,
+        activeTripId: LEGACY_TRIP_ID,
+        trips: [
+          { id: LEGACY_TRIP_ID, name: LEGACY_TRIP_NAME }
+        ]
+      };
+    }
+
+    function saveTripProfiles(profiles) {
+      try {
+        localStorage.setItem(TRIP_PROFILES_STORAGE_KEY, JSON.stringify(profiles));
+      } catch (err) {
+        console.warn('Error saving trip profiles:', err);
+      }
+    }
+
+    function getActiveTripId() {
+      const profiles = getTripProfiles();
+      return profiles.activeTripId || LEGACY_TRIP_ID;
+    }
+
+    function getActiveTrip() {
+      const profiles = getTripProfiles();
+      return profiles.trips.find(t => t.id === profiles.activeTripId) || { id: LEGACY_TRIP_ID, name: LEGACY_TRIP_NAME };
+    }
+
+    function generateTripId(name, existingTrips = []) {
+      let slug = String(name || '')
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+      if (!slug) slug = 'trip-' + Date.now().toString(36);
+      const existingIds = new Set((existingTrips || []).map(t => t.id));
+      if (!existingIds.has(slug)) return slug;
+      let candidate = slug;
+      let counter = 2;
+      while (existingIds.has(candidate)) {
+        candidate = `${slug}-${counter}`;
+        counter++;
+      }
+      return candidate;
+    }
+
+    function createTrip(name) {
+      const trimmedName = String(name || '').trim();
+      if (!trimmedName) return null;
+      const profiles = getTripProfiles();
+      const newId = generateTripId(trimmedName, profiles.trips);
+      const newTrip = { id: newId, name: trimmedName };
+      profiles.trips.push(newTrip);
+      profiles.activeTripId = newId;
+      saveTripProfiles(profiles);
+      return newTrip;
+    }
+
+    function switchActiveTrip(tripId) {
+      const profiles = getTripProfiles();
+      const target = profiles.trips.find(t => t.id === tripId);
+      if (!target) return;
+      profiles.activeTripId = target.id;
+      saveTripProfiles(profiles);
+      renderActiveTripUI();
+      renderTotalsAndList();
+    }
+
+    function getActiveTripExpenses() {
+      const activeId = getActiveTripId();
+      return masterExpenses.filter(item => getExpenseTripId(item) === activeId);
+    }
+
+    function renderActiveTripUI() {
+      const currentTrip = getActiveTrip();
+      const nameEl = document.getElementById('activeTripName');
+      if (nameEl) nameEl.textContent = currentTrip.name;
+
+      const profiles = getTripProfiles();
+      const listEl = document.getElementById('tripDropdownList');
+      if (listEl) {
+        listEl.replaceChildren();
+        profiles.trips.forEach(trip => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          const isActive = trip.id === profiles.activeTripId;
+          btn.className = `w-full text-left px-3 py-2 rounded-xl flex items-center justify-between transition ${
+            isActive ? 'bg-amber-500/15 text-amber-300 font-bold border border-amber-500/30' : 'text-slate-200 hover:bg-slate-800'
+          }`;
+          
+          const labelSpan = document.createElement('span');
+          labelSpan.className = 'truncate pr-2';
+          labelSpan.textContent = trip.name;
+          btn.appendChild(labelSpan);
+
+          if (isActive) {
+            const checkIcon = document.createElement('i');
+            checkIcon.className = 'fa-solid fa-check text-xs text-amber-400 shrink-0';
+            btn.appendChild(checkIcon);
+          }
+
+          btn.addEventListener('click', () => {
+            switchActiveTrip(trip.id);
+            closeTripDropdown();
+          });
+          listEl.appendChild(btn);
+        });
+      }
+    }
+
+    function toggleTripDropdown(e) {
+      if (e) e.stopPropagation();
+      const menu = document.getElementById('tripDropdownMenu');
+      const btn = document.getElementById('tripSelectorBtn');
+      const chevron = document.getElementById('tripChevron');
+      if (!menu) return;
+      const willOpen = menu.classList.contains('hidden');
+      if (willOpen) {
+        renderActiveTripUI();
+        menu.classList.remove('hidden');
+        if (btn) btn.setAttribute('aria-expanded', 'true');
+        if (chevron) chevron.classList.add('rotate-180');
+      } else {
+        closeTripDropdown();
+      }
+    }
+
+    function closeTripDropdown() {
+      const menu = document.getElementById('tripDropdownMenu');
+      const btn = document.getElementById('tripSelectorBtn');
+      const chevron = document.getElementById('tripChevron');
+      if (menu) menu.classList.add('hidden');
+      if (btn) btn.setAttribute('aria-expanded', 'false');
+      if (chevron) chevron.classList.remove('rotate-180');
+    }
+
+    function openNewTripModal() {
+      closeTripDropdown();
+      const modal = document.getElementById('newTripModal');
+      const input = document.getElementById('newTripNameInput');
+      if (modal) modal.classList.remove('hidden');
+      if (input) {
+        input.value = '';
+        setTimeout(() => input.focus(), 50);
+      }
+    }
+
+    function closeNewTripModal() {
+      const modal = document.getElementById('newTripModal');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    function handleCreateTripSubmit(e) {
+      e.preventDefault();
+      const input = document.getElementById('newTripNameInput');
+      const name = input ? input.value.trim() : '';
+      if (!name) return;
+      const created = createTrip(name);
+      if (created) {
+        closeNewTripModal();
+        renderActiveTripUI();
+        renderTotalsAndList();
+        showToast(`Switched to "${created.name}"`);
+      }
+    }
+
+    window.addEventListener('click', (e) => {
+      const menu = document.getElementById('tripDropdownMenu');
+      const btn = document.getElementById('tripSelectorBtn');
+      if (menu && !menu.classList.contains('hidden')) {
+        if (!menu.contains(e.target) && (!btn || !btn.contains(e.target))) {
+          closeTripDropdown();
+        }
+      }
+    });
+
     window.addEventListener('DOMContentLoaded', () => {
       document.getElementById('dateInput').value = InsightsData.dateKey(new Date());
       
@@ -497,6 +784,7 @@
         fetchLiveExchangeRate();
       }
 
+      renderActiveTripUI();
       renderQuickChips();
       renderCategoryButtons();
       renderTotalsAndList();
@@ -826,8 +1114,17 @@
       const item = document.getElementById('itemInput').value.trim();
       const notes = document.getElementById('notesInput').value.trim();
 
+      let tripId;
+      if (editingExpenseId) {
+        const existing = masterExpenses.find(e => e.id.toString() === editingExpenseId.toString());
+        tripId = getExpenseTripId(existing);
+      } else {
+        tripId = getActiveTripId();
+      }
+
       const expenseRecord = {
         id: editingExpenseId ? editingExpenseId : generateId(),
+        trip_id: tripId,
         date: date,
         cost_php: costPhp,
         cost_cad: costCad,
@@ -869,7 +1166,9 @@
       const container = document.getElementById('historyListContainer');
       container.replaceChildren();
 
-      masterExpenses.forEach(item => {
+      const activeExpenses = getActiveTripExpenses();
+
+      activeExpenses.forEach(item => {
         const cad = InsightsData.parseAmount(item.cost_cad);
         const php = InsightsData.parseAmount(item.cost_php);
         if (Number.isFinite(cad)) totalCad += cad;
@@ -966,7 +1265,7 @@
         container.appendChild(card);
       });
 
-      if (masterExpenses.length === 0) {
+      if (activeExpenses.length === 0) {
         const emptyDiv = document.createElement('div');
         emptyDiv.className = 'text-center text-slate-500 py-8';
         emptyDiv.textContent = 'No expenses logged yet.';
@@ -975,8 +1274,8 @@
 
       document.getElementById('heroCadTotal').textContent = `$${totalCad.toFixed(2)}`;
       document.getElementById('heroPhpTotal').textContent = `₱${Math.round(totalPhp).toLocaleString()} PHP`;
-      document.getElementById('historyCount').textContent = String(masterExpenses.length);
-      if (window.TravelInsights) window.TravelInsights.refresh(masterExpenses);
+      document.getElementById('historyCount').textContent = String(activeExpenses.length);
+      if (window.TravelInsights) window.TravelInsights.refresh(activeExpenses);
     }
 
     function openSettingsModal() {

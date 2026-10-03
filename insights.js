@@ -166,5 +166,5 @@
   let resizeTimer;
   window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(render, 150); });
   window.TravelInsights = { refresh(expenses) { records = Array.isArray(expenses) ? expenses : []; updateOptions(); render(); } };
-  window.TravelInsights.refresh(masterExpenses);
+  window.TravelInsights.refresh(typeof getActiveTripExpenses === 'function' ? getActiveTripExpenses() : masterExpenses);
 })();
