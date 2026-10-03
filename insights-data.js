@@ -57,11 +57,36 @@
     }
     return NaN;
   }
+  function getExpenseLocalCost(record) {
+    if (!record) return NaN;
+    if (record.cost_local !== undefined && record.cost_local !== null && record.cost_local !== '') {
+      return parseAmount(record.cost_local);
+    }
+    return parseAmount(record.cost_php);
+  }
+  function getExpenseLocalCurrency(record) {
+    if (!record) return 'PHP';
+    const curr = typeof record.currency_local === 'string' && record.currency_local.trim();
+    return curr ? curr.toUpperCase() : 'PHP';
+  }
   function normalize(records, currency) {
     const rows = [];
     let skipped = 0;
-    for (const record of records) {
-      const value = record && record[currency === 'PHP' ? 'cost_php' : 'cost_cad'];
+    const targetCurrency = (currency || 'CAD').toUpperCase();
+    for (const record of (records || [])) {
+      let value;
+      if (targetCurrency === 'CAD') {
+        value = record && record.cost_cad;
+      } else {
+        const recCurrency = getExpenseLocalCurrency(record);
+        if (targetCurrency && recCurrency !== targetCurrency) {
+          skipped++;
+          continue;
+        }
+        value = (record && record.cost_local !== undefined && record.cost_local !== null && record.cost_local !== '')
+          ? record.cost_local
+          : (record && record.cost_php);
+      }
       const amount = parseAmount(value);
       const cents = Math.round(amount * 100);
       const date = parseDay(record && record.date);
@@ -125,11 +150,17 @@
   }
   const LEGACY_TRIP_ID = 'philippines-2026';
   const LEGACY_TRIP_NAME = 'Philippines 2026';
+  const LEGACY_CURRENCY = 'PHP';
+  const HOME_CURRENCY = 'CAD';
   function getExpenseTripId(record) {
     if (!record || typeof record.trip_id !== 'string' || !record.trip_id.trim()) {
       return LEGACY_TRIP_ID;
     }
     return record.trip_id.trim();
   }
-  return { dateKey, parseDay, addDays, bounds, normalize, summarize, parseAmount, recordLabels, getExpenseTripId, LEGACY_TRIP_ID, LEGACY_TRIP_NAME };
+  return {
+    dateKey, parseDay, addDays, bounds, normalize, summarize, parseAmount, recordLabels,
+    getExpenseTripId, getExpenseLocalCost, getExpenseLocalCurrency,
+    LEGACY_TRIP_ID, LEGACY_TRIP_NAME, LEGACY_CURRENCY, HOME_CURRENCY
+  };
 });

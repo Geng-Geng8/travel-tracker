@@ -156,6 +156,26 @@
       render();
     });
   });
+  function updateCurrencySelector(localCurrency) {
+    const localCurr = (localCurrency || 'PHP').toUpperCase();
+    const buttons = document.querySelectorAll('[data-currency]');
+    let localBtn = null;
+    buttons.forEach(btn => {
+      if (btn.id === 'insightsCurrencyLocal' || btn.dataset.currency !== 'CAD') {
+        localBtn = btn;
+      }
+    });
+    if (localBtn) {
+      localBtn.dataset.currency = localCurr;
+      localBtn.textContent = localCurr;
+    }
+    if (filters.currency !== 'CAD') {
+      filters.currency = localCurr;
+    }
+    document.querySelectorAll('[data-currency]').forEach(item => {
+      item.setAttribute('aria-pressed', String(item.dataset.currency === filters.currency));
+    });
+  }
   document.querySelectorAll('[data-currency]').forEach(button => button.addEventListener('click', () => {
     filters.currency = button.dataset.currency;
     document.querySelectorAll('[data-currency]').forEach(item => item.setAttribute('aria-pressed', String(item === button)));
@@ -165,6 +185,22 @@
   $('insightsEmptyAction').addEventListener('click', () => { if (!records.length) setPage(false, true); else resetFilters(); });
   let resizeTimer;
   window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(render, 150); });
-  window.TravelInsights = { refresh(expenses) { records = Array.isArray(expenses) ? expenses : []; updateOptions(); render(); } };
+  window.TravelInsights = {
+    refresh(expenses, localCurrency) {
+      records = Array.isArray(expenses) ? expenses : [];
+      let activeCurr = localCurrency;
+      if (!activeCurr && typeof window.getActiveTrip === 'function') {
+        const trip = window.getActiveTrip();
+        if (trip && trip.currency) activeCurr = trip.currency;
+      }
+      if (!activeCurr && records.length > 0 && typeof data.getExpenseLocalCurrency === 'function') {
+        activeCurr = data.getExpenseLocalCurrency(records[0]);
+      }
+      if (!activeCurr) activeCurr = 'PHP';
+      updateCurrencySelector(activeCurr);
+      updateOptions();
+      render();
+    }
+  };
   window.TravelInsights.refresh(typeof getActiveTripExpenses === 'function' ? getActiveTripExpenses() : masterExpenses);
 })();
