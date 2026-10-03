@@ -678,7 +678,11 @@
           if (parsed && Array.isArray(parsed.trips) && parsed.trips.length > 0) {
             parsed.trips.forEach(t => {
               if (!t.currency || typeof t.currency !== 'string' || !t.currency.trim()) {
-                t.currency = (t.id === LEGACY_TRIP_ID) ? LEGACY_CURRENCY : LEGACY_CURRENCY;
+                if (t.id === LEGACY_TRIP_ID) {
+                  t.currency = LEGACY_CURRENCY;
+                } else {
+                  delete t.currency;
+                }
               } else {
                 t.currency = t.currency.trim().toUpperCase();
               }
@@ -719,7 +723,52 @@
 
     function getActiveTrip() {
       const profiles = getTripProfiles();
-      return profiles.trips.find(t => t.id === profiles.activeTripId) || { id: LEGACY_TRIP_ID, name: LEGACY_TRIP_NAME, currency: LEGACY_CURRENCY };
+      const trip = profiles.trips.find(t => t.id === profiles.activeTripId) || { id: LEGACY_TRIP_ID, name: LEGACY_TRIP_NAME, currency: LEGACY_CURRENCY };
+      if (trip.id === LEGACY_TRIP_ID && !trip.currency) {
+        trip.currency = LEGACY_CURRENCY;
+      }
+      return trip;
+    }
+
+    function promptTripCurrency(tripName, customPromptFn) {
+      const ask = customPromptFn || (typeof window !== 'undefined' && typeof window.prompt === 'function' ? window.prompt.bind(window) : null);
+      if (!ask) return null;
+      while (true) {
+        const raw = ask(`Enter 3-letter local currency code for "${tripName}" (e.g. JPY, USD, EUR):`);
+        if (raw === null || raw === undefined) return null;
+        const normalized = String(raw).trim().toUpperCase();
+        if (/^[A-Z]{3}$/.test(normalized)) {
+          return normalized;
+        }
+        if (typeof alert === 'function') {
+          alert('Please enter a valid 3-letter currency code (e.g. JPY, USD, EUR).');
+        }
+      }
+    }
+
+    function ensureTripCurrency(trip, customPromptFn) {
+      if (!trip) return null;
+      if (trip.currency && /^[A-Z]{3}$/.test(trip.currency)) {
+        return trip.currency;
+      }
+      if (trip.id === LEGACY_TRIP_ID) {
+        trip.currency = LEGACY_CURRENCY;
+        const profiles = getTripProfiles();
+        const existing = profiles.trips.find(t => t.id === trip.id);
+        if (existing) existing.currency = LEGACY_CURRENCY;
+        saveTripProfiles(profiles);
+        return trip.currency;
+      }
+      const code = promptTripCurrency(trip.name, customPromptFn);
+      if (code) {
+        trip.currency = code;
+        const profiles = getTripProfiles();
+        const existing = profiles.trips.find(t => t.id === trip.id);
+        if (existing) existing.currency = code;
+        saveTripProfiles(profiles);
+        return code;
+      }
+      return null;
     }
 
     function generateTripId(name, existingTrips = []) {
@@ -755,10 +804,14 @@
       return newTrip;
     }
 
-    function switchActiveTrip(tripId) {
+    function switchActiveTrip(tripId, customPromptFn) {
       const profiles = getTripProfiles();
       const target = profiles.trips.find(t => t.id === tripId);
       if (!target) return;
+      if (!target.currency || !/^[A-Z]{3}$/.test(target.currency)) {
+        const code = ensureTripCurrency(target, customPromptFn);
+        if (!code) return;
+      }
       profiles.activeTripId = target.id;
       saveTripProfiles(profiles);
       onActiveTripChanged();
@@ -796,7 +849,7 @@
           
           const labelSpan = document.createElement('span');
           labelSpan.className = 'truncate pr-2 flex items-center gap-1.5';
-          labelSpan.innerHTML = `<span>${escapeHtml(trip.name)}</span> <span class="text-[10px] text-slate-400 font-mono">(${escapeHtml(trip.currency || 'PHP')})</span>`;
+          labelSpan.innerHTML = `<span>${escapeHtml(trip.name)}</span> <span class="text-[10px] text-slate-400 font-mono">(${escapeHtml(trip.currency || 'Set Currency')})</span>`;
           btn.appendChild(labelSpan);
 
           if (isActive) {
@@ -1573,7 +1626,14 @@
       const pinEl = document.getElementById('settingPin');
       if (pinEl) pinEl.value = savedPin;
 
-      const activeTrip = getActiveTrip();
+      let activeTrip = getActiveTrip();
+      if (!activeTrip.currency || !/^[A-Z]{3}$/.test(activeTrip.currency)) {
+        const code = ensureTripCurrency(activeTrip);
+        if (!code) {
+          switchActiveTrip(LEGACY_TRIP_ID);
+          activeTrip = getActiveTrip();
+        }
+      }
       setupInputCurrencyToggle(activeTrip.currency);
       loadExchangeRateForCurrency(activeTrip.currency);
 

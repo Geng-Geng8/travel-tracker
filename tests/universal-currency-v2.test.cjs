@@ -27,7 +27,11 @@ function createTripManager(storage) {
         if (parsed && Array.isArray(parsed.trips) && parsed.trips.length > 0) {
           parsed.trips.forEach(t => {
             if (!t.currency || typeof t.currency !== 'string' || !t.currency.trim()) {
-              t.currency = (t.id === LEGACY_TRIP_ID) ? LEGACY_CURRENCY : LEGACY_CURRENCY;
+              if (t.id === LEGACY_TRIP_ID) {
+                t.currency = LEGACY_CURRENCY;
+              } else {
+                delete t.currency;
+              }
             } else {
               t.currency = t.currency.trim().toUpperCase();
             }
@@ -63,7 +67,48 @@ function createTripManager(storage) {
 
   function getActiveTrip() {
     const profiles = getTripProfiles();
-    return profiles.trips.find(t => t.id === profiles.activeTripId) || { id: LEGACY_TRIP_ID, name: LEGACY_TRIP_NAME, currency: LEGACY_CURRENCY };
+    const trip = profiles.trips.find(t => t.id === profiles.activeTripId) || { id: LEGACY_TRIP_ID, name: LEGACY_TRIP_NAME, currency: LEGACY_CURRENCY };
+    if (trip.id === LEGACY_TRIP_ID && !trip.currency) {
+      trip.currency = LEGACY_CURRENCY;
+    }
+    return trip;
+  }
+
+  function promptTripCurrency(tripName, customPromptFn) {
+    if (!customPromptFn) return null;
+    while (true) {
+      const raw = customPromptFn(`Enter 3-letter local currency code for "${tripName}":`);
+      if (raw === null || raw === undefined) return null;
+      const normalized = String(raw).trim().toUpperCase();
+      if (/^[A-Z]{3}$/.test(normalized)) {
+        return normalized;
+      }
+    }
+  }
+
+  function ensureTripCurrency(trip, customPromptFn) {
+    if (!trip) return null;
+    if (trip.currency && /^[A-Z]{3}$/.test(trip.currency)) {
+      return trip.currency;
+    }
+    if (trip.id === LEGACY_TRIP_ID) {
+      trip.currency = LEGACY_CURRENCY;
+      const profiles = getTripProfiles();
+      const existing = profiles.trips.find(t => t.id === trip.id);
+      if (existing) existing.currency = LEGACY_CURRENCY;
+      saveTripProfiles(profiles);
+      return trip.currency;
+    }
+    const code = promptTripCurrency(trip.name, customPromptFn);
+    if (code) {
+      trip.currency = code;
+      const profiles = getTripProfiles();
+      const existing = profiles.trips.find(t => t.id === trip.id);
+      if (existing) existing.currency = code;
+      saveTripProfiles(profiles);
+      return code;
+    }
+    return null;
   }
 
   function generateTripId(name, existingTrips = []) {
@@ -99,10 +144,14 @@ function createTripManager(storage) {
     return newTrip;
   }
 
-  function switchActiveTrip(tripId) {
+  function switchActiveTrip(tripId, customPromptFn) {
     const profiles = getTripProfiles();
     const target = profiles.trips.find(t => t.id === tripId);
     if (!target) return;
+    if (!target.currency || !/^[A-Z]{3}$/.test(target.currency)) {
+      const code = ensureTripCurrency(target, customPromptFn);
+      if (!code) return;
+    }
     profiles.activeTripId = target.id;
     saveTripProfiles(profiles);
   }
@@ -224,6 +273,8 @@ function createTripManager(storage) {
     generateTripId,
     createTrip,
     switchActiveTrip,
+    ensureTripCurrency,
+    promptTripCurrency,
     getCustomExchangeRate,
     setCustomExchangeRate,
     getActiveTripExpenses,
@@ -524,13 +575,13 @@ test('10. editing preserves original trip and currency', () => {
 });
 
 // -------------------------------------------------------------
-// Targeted Test 11: Trip Profiles V1 localStorage migrates safely
+// Targeted Test 11: non-Philippines V1 trip is NOT silently converted to PHP
 // -------------------------------------------------------------
-test('11. Trip Profiles V1 localStorage migrates safely', () => {
+test('11. non-Philippines V1 trip is NOT silently converted to PHP and prompts before use', () => {
   // Simulate pre-existing V1 storage without currency property
   const v1StorageData = {
     version: 1,
-    activeTripId: 'japan-2027',
+    activeTripId: 'philippines-2026',
     trips: [
       { id: 'philippines-2026', name: 'Philippines 2026' },
       { id: 'japan-2027', name: 'Japan 2027' }
@@ -544,17 +595,48 @@ test('11. Trip Profiles V1 localStorage migrates safely', () => {
   const manager = createTripManager(storage);
   const profiles = manager.getTripProfiles();
 
-  // Ensure profiles migrated safely without errors
-  assert.equal(profiles.trips.length, 2);
+  // 1. Verify philippines-2026 with no currency automatically defaults to PHP
   const phil = profiles.trips.find(t => t.id === 'philippines-2026');
   assert.ok(phil);
-  assert.equal(phil.currency, 'PHP', 'Philippines 2026 must default to PHP');
+  assert.equal(phil.currency, 'PHP', 'philippines-2026 with no currency automatically becomes PHP');
 
+  // 2. Focused regression test: proving non-Philippines V1 trip is NOT silently converted to PHP
   const japan = profiles.trips.find(t => t.id === 'japan-2027');
   assert.ok(japan);
-  assert.ok(japan.currency, 'Existing profiles must have a safe fallback currency');
+  assert.notEqual(japan.currency, 'PHP', 'Regression assertion: non-Philippines V1 trip must NOT be silently converted to PHP');
+  assert.equal(japan.currency, undefined, 'Currency remains unset before user is prompted');
 
-  assert.equal(manager.getActiveTripId(), 'japan-2027', 'Active trip selection is preserved');
+  // 3. User switches to or uses the non-Philippines trip:
+  // Must ask the user for a 3-letter currency, normalize to uppercase, validate exactly 3 letters
+  const promptLog = [];
+  const responses = ['jp', 'JAPAN', '  jpy  ']; // First two are invalid (< 3 letters and > 3 letters)
+  let callIdx = 0;
+  const mockPrompt = (msg) => {
+    promptLog.push(msg);
+    return responses[callIdx++];
+  };
+
+  manager.switchActiveTrip('japan-2027', mockPrompt);
+
+  // Assert validation rejected 'jp' and 'JAPAN', accepted '  jpy  '
+  assert.equal(promptLog.length, 3, 'Prompt looped until valid 3-letter code was provided');
+  assert.equal(manager.getActiveTripId(), 'japan-2027');
+
+  const activeTrip = manager.getActiveTrip();
+  assert.equal(activeTrip.currency, 'JPY', 'Input normalized to uppercase JPY');
+
+  // 4. Saved to that trip profile so the user is not asked again
+  const persistedProfiles = JSON.parse(storage.getItem('travel_trip_profiles_v1'));
+  const persistedJapan = persistedProfiles.trips.find(t => t.id === 'japan-2027');
+  assert.equal(persistedJapan.currency, 'JPY', 'Currency JPY saved to storage profile');
+
+  // Next time trip is used or switched to, user is NOT asked again
+  let askedAgain = false;
+  manager.switchActiveTrip('japan-2027', () => {
+    askedAgain = true;
+    return 'USD';
+  });
+  assert.equal(askedAgain, false, 'User must not be asked again once currency is saved to profile');
 });
 
 // -------------------------------------------------------------
