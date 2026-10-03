@@ -97,7 +97,7 @@
           </div>
           <p id="rateBadge" class="text-xs text-slate-400 font-medium flex items-center gap-1.5 mt-0.5">
             <span id="onlineDot" class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-            1 CAD ≈ <span id="displayRateText" class="text-slate-200 font-bold">44.00</span> PHP
+            1 CAD ≈ <span id="displayRateText" class="text-slate-200 font-bold">44.00</span> <span id="displayRateCurrency">PHP</span>
           </p>
         </div>
       </div>
@@ -179,7 +179,7 @@
       </div>
       
       <div class="mt-1 text-xs text-slate-400 flex items-center gap-1.5">
-        <span>Combined Total:</span>
+        <span id="heroLocalLabel">Combined Total:</span>
         <span class="font-bold text-slate-200" id="heroPhpTotal">₱0 PHP</span>
       </div>
     </section>
@@ -203,7 +203,7 @@
         <div class="flex justify-between items-center pb-1">
           <label class="text-xs font-bold uppercase tracking-wider text-slate-400">Select Input Currency</label>
           <div class="bg-slate-900 border border-slate-700/90 p-1 rounded-xl flex gap-1 shadow-inner">
-            <button type="button" id="currBtnPhp" onclick="setInputCurrency('PHP')" class="curr-btn-active px-3 py-1 rounded-lg text-xs font-bold transition">
+            <button type="button" id="currBtnPhp" onclick="setInputCurrency('LOCAL')" class="curr-btn-active px-3 py-1 rounded-lg text-xs font-bold transition">
               ₱ PHP
             </button>
             <button type="button" id="currBtnCad" onclick="setInputCurrency('CAD')" class="text-slate-400 px-3 py-1 rounded-lg text-xs font-bold transition">
@@ -372,9 +372,9 @@
     <section id="insightsPage" role="tabpanel" aria-labelledby="insightsTab" hidden>
       <div class="insights-heading">
         <div><p class="insights-eyebrow">YOUR MONEY, AT A GLANCE</p><h2>Spending insights</h2><p class="insights-muted">A clearer picture of where it all goes.</p></div>
-        <div class="insights-currency" role="group" aria-label="Chart currency">
-          <button type="button" data-currency="CAD" aria-pressed="true">CAD</button>
-          <button type="button" data-currency="PHP" aria-pressed="false">PHP</button>
+        <div class="insights-currency" id="insightsCurrencySelector" role="group" aria-label="Chart currency">
+          <button type="button" id="insightsCurrencyCad" data-currency="CAD" aria-pressed="true">CAD</button>
+          <button type="button" id="insightsCurrencyLocal" data-currency="PHP" aria-pressed="false">PHP</button>
         </div>
       </div>
 
@@ -468,16 +468,16 @@
         </div>
 
         <div>
-          <label class="font-bold text-slate-300 block mb-1">Custom CAD per PHP Rate (Optional)</label>
+          <label id="customRateLabel" class="font-bold text-slate-300 block mb-1">Custom CAD per 1 PHP Rate (Optional)</label>
           <div class="flex gap-2">
             <input 
               id="settingCustomRate" 
               type="number" 
-              step="0.0001" 
+              step="any" 
               placeholder="e.g. 0.0227" 
               class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white text-xs focus:border-amber-500 focus:outline-none font-mono"
             >
-            <button type="button" onclick="fetchLiveExchangeRate()" class="px-3 bg-slate-800 border border-slate-700 hover:bg-slate-700 rounded-xl text-amber-400 font-bold whitespace-nowrap">
+            <button type="button" onclick="refreshCurrentTripRate()" class="px-3 bg-slate-800 border border-slate-700 hover:bg-slate-700 rounded-xl text-amber-400 font-bold whitespace-nowrap">
               <i class="fa-solid fa-arrows-rotate"></i> Live
             </button>
           </div>
@@ -517,6 +517,21 @@
           >
         </div>
 
+        <div>
+          <label for="newTripCurrencyInput" class="font-bold text-slate-300 block mb-1">Local Currency</label>
+          <input 
+            id="newTripCurrencyInput" 
+            type="text" 
+            required 
+            maxlength="3"
+            placeholder="e.g. JPY, USD, EUR" 
+            class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white text-xs focus:border-amber-500 focus:outline-none font-mono uppercase tracking-wider"
+            autocomplete="off"
+            oninput="this.value = this.value.toUpperCase()"
+          >
+          <p id="newTripCurrencyError" class="text-[10px] text-red-400 mt-1 hidden">Enter a valid 3-letter currency code (e.g. JPY, USD, EUR).</p>
+        </div>
+
         <div class="pt-2 flex gap-2">
           <button type="button" onclick="closeNewTripModal()" class="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs transition">
             Cancel
@@ -545,23 +560,87 @@
       'Giving': ['Gifts', 'Charity', 'Misc']
     };
 
-    let exchangeRateCadPerPhp = 0.0227; 
-    let currentInputCurrency = 'PHP';
+    // Legacy & Home Currency Constants
+    const LEGACY_TRIP_ID = (window.InsightsData && window.InsightsData.LEGACY_TRIP_ID) || 'philippines-2026';
+    const LEGACY_TRIP_NAME = (window.InsightsData && window.InsightsData.LEGACY_TRIP_NAME) || 'Philippines 2026';
+    const LEGACY_CURRENCY = (window.InsightsData && window.InsightsData.LEGACY_CURRENCY) || 'PHP';
+    const HOME_CURRENCY = (window.InsightsData && window.InsightsData.HOME_CURRENCY) || 'CAD';
+    const TRIP_PROFILES_STORAGE_KEY = 'travel_trip_profiles_v1';
+
+    // State Variables
+    let exchangeRateCadPerPhp = 0.0227; // Backward compatibility
+    let activeExchangeRateCurrency = 'PHP';
+    let activeExchangeRate = 0.0227;    // CAD value per 1 unit of active trip's local currency
+    let exchangeRateRequestId = 0;      // Sequence token to prevent stale async responses
+    let currentInputCurrency = 'LOCAL'; // 'LOCAL' or 'CAD'
     let selectedPaymentMethod = 'Cash';
     let selectedBucket = 'Play';
     let selectedCategory = 'Eating Out';
     let editingExpenseId = null;
+    let editingExpenseTripId = null;
+    let editingExpenseCurrency = null;
+    let editingExpenseRate = null;
     let isSyncing = false;
 
     // PERSISTENT LOCAL STORAGE
     let masterExpenses = JSON.parse(localStorage.getItem('travel_expenses_log') || '[]');
     let syncQueue = JSON.parse(localStorage.getItem('sync_queue') || '[]');
 
-    // TRIP PROFILES (V1)
-    const LEGACY_TRIP_ID = (window.InsightsData && window.InsightsData.LEGACY_TRIP_ID) || 'philippines-2026';
-    const LEGACY_TRIP_NAME = (window.InsightsData && window.InsightsData.LEGACY_TRIP_NAME) || 'Philippines 2026';
-    const TRIP_PROFILES_STORAGE_KEY = 'travel_trip_profiles_v1';
+    // CURRENCY FORMATTING & SYMBOL HELPERS
+    function getCurrencySymbol(curr) {
+      const code = (curr || HOME_CURRENCY).toUpperCase();
+      try {
+        const parts = new Intl.NumberFormat('en-CA', {
+          style: 'currency',
+          currency: code,
+          currencyDisplay: 'narrowSymbol'
+        }).formatToParts(0);
+        const part = parts.find(p => p.type === 'currency');
+        return part ? part.value : code;
+      } catch (e) {
+        if (code === 'PHP') return '₱';
+        if (code === 'CAD' || code === 'USD') return '$';
+        if (code === 'EUR') return '€';
+        if (code === 'GBP') return '£';
+        if (code === 'JPY') return '¥';
+        return code;
+      }
+    }
 
+    function formatCurrency(amount, currencyCode) {
+      const code = (currencyCode || HOME_CURRENCY).toUpperCase();
+      const num = Number(amount);
+      if (!Number.isFinite(num)) return `— ${code}`;
+      try {
+        const isWholeOnly = (code === 'PHP' || code === 'JPY' || code === 'KRW');
+        const formatted = new Intl.NumberFormat('en-CA', {
+          style: 'currency',
+          currency: code,
+          currencyDisplay: 'narrowSymbol',
+          minimumFractionDigits: isWholeOnly ? 0 : 2,
+          maximumFractionDigits: isWholeOnly ? 0 : 2
+        }).format(isWholeOnly ? Math.round(num) : num);
+        return `${formatted} ${code}`;
+      } catch (e) {
+        return `${num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${code}`;
+      }
+    }
+
+    function getCurrencyScale(currency) {
+      const c = (currency || '').toUpperCase();
+      // High-magnitude zero-decimal or high-unit currencies
+      if (['JPY', 'KRW', 'VND', 'IDR', 'CLP', 'HUF'].includes(c)) {
+        return { chips: [500, 1000, 5000, 10000], step: 100 };
+      }
+      // Moderate-magnitude currencies
+      if (['PHP', 'THB', 'TWD', 'INR', 'CZK'].includes(c)) {
+        return { chips: [50, 100, 500, 1000], step: 50 };
+      }
+      // Major decimal currencies (CAD, USD, EUR, GBP, AUD, etc.)
+      return { chips: [10, 50, 100, 500], step: 5 };
+    }
+
+    // EXPENSE COMPATIBILITY HELPERS
     function getExpenseTripId(record) {
       if (window.InsightsData && typeof window.InsightsData.getExpenseTripId === 'function') {
         return window.InsightsData.getExpenseTripId(record);
@@ -572,19 +651,50 @@
       return record.trip_id.trim();
     }
 
+    function getExpenseLocalCost(record) {
+      if (window.InsightsData && typeof window.InsightsData.getExpenseLocalCost === 'function') {
+        return window.InsightsData.getExpenseLocalCost(record);
+      }
+      if (!record) return NaN;
+      if (record.cost_local !== undefined && record.cost_local !== null && record.cost_local !== '') {
+        return parseFloat(record.cost_local);
+      }
+      return parseFloat(record.cost_php);
+    }
+
+    function getExpenseLocalCurrency(record) {
+      if (window.InsightsData && typeof window.InsightsData.getExpenseLocalCurrency === 'function') {
+        return window.InsightsData.getExpenseLocalCurrency(record);
+      }
+      if (!record) return LEGACY_CURRENCY;
+      const curr = typeof record.currency_local === 'string' && record.currency_local.trim();
+      return curr ? curr.toUpperCase() : LEGACY_CURRENCY;
+    }
+
+    // TRIP PROFILES (V2 WITH SAFE MIGRATION)
     function getTripProfiles() {
       try {
         const raw = localStorage.getItem(TRIP_PROFILES_STORAGE_KEY);
         if (raw) {
           const parsed = JSON.parse(raw);
           if (parsed && Array.isArray(parsed.trips) && parsed.trips.length > 0) {
+            parsed.trips.forEach(t => {
+              if (!t.currency || typeof t.currency !== 'string' || !t.currency.trim()) {
+                if (t.id === LEGACY_TRIP_ID) {
+                  t.currency = LEGACY_CURRENCY;
+                } else {
+                  delete t.currency;
+                }
+              } else {
+                t.currency = t.currency.trim().toUpperCase();
+              }
+            });
             if (!parsed.trips.some(t => t.id === LEGACY_TRIP_ID)) {
-              parsed.trips.unshift({ id: LEGACY_TRIP_ID, name: LEGACY_TRIP_NAME });
+              parsed.trips.unshift({ id: LEGACY_TRIP_ID, name: LEGACY_TRIP_NAME, currency: LEGACY_CURRENCY });
             }
             if (!parsed.activeTripId || !parsed.trips.some(t => t.id === parsed.activeTripId)) {
               parsed.activeTripId = parsed.trips[0].id;
             }
-            parsed.version = 1;
             return parsed;
           }
         }
@@ -595,7 +705,7 @@
         version: 1,
         activeTripId: LEGACY_TRIP_ID,
         trips: [
-          { id: LEGACY_TRIP_ID, name: LEGACY_TRIP_NAME }
+          { id: LEGACY_TRIP_ID, name: LEGACY_TRIP_NAME, currency: LEGACY_CURRENCY }
         ]
       };
     }
@@ -615,7 +725,52 @@
 
     function getActiveTrip() {
       const profiles = getTripProfiles();
-      return profiles.trips.find(t => t.id === profiles.activeTripId) || { id: LEGACY_TRIP_ID, name: LEGACY_TRIP_NAME };
+      const trip = profiles.trips.find(t => t.id === profiles.activeTripId) || { id: LEGACY_TRIP_ID, name: LEGACY_TRIP_NAME, currency: LEGACY_CURRENCY };
+      if (trip.id === LEGACY_TRIP_ID && !trip.currency) {
+        trip.currency = LEGACY_CURRENCY;
+      }
+      return trip;
+    }
+
+    function promptTripCurrency(tripName, customPromptFn) {
+      const ask = customPromptFn || (typeof window !== 'undefined' && typeof window.prompt === 'function' ? window.prompt.bind(window) : null);
+      if (!ask) return null;
+      while (true) {
+        const raw = ask(`Enter 3-letter local currency code for "${tripName}" (e.g. JPY, USD, EUR):`);
+        if (raw === null || raw === undefined) return null;
+        const normalized = String(raw).trim().toUpperCase();
+        if (/^[A-Z]{3}$/.test(normalized)) {
+          return normalized;
+        }
+        if (typeof alert === 'function') {
+          alert('Please enter a valid 3-letter currency code (e.g. JPY, USD, EUR).');
+        }
+      }
+    }
+
+    function ensureTripCurrency(trip, customPromptFn) {
+      if (!trip) return null;
+      if (trip.currency && /^[A-Z]{3}$/.test(trip.currency)) {
+        return trip.currency;
+      }
+      if (trip.id === LEGACY_TRIP_ID) {
+        trip.currency = LEGACY_CURRENCY;
+        const profiles = getTripProfiles();
+        const existing = profiles.trips.find(t => t.id === trip.id);
+        if (existing) existing.currency = LEGACY_CURRENCY;
+        saveTripProfiles(profiles);
+        return trip.currency;
+      }
+      const code = promptTripCurrency(trip.name, customPromptFn);
+      if (code) {
+        trip.currency = code;
+        const profiles = getTripProfiles();
+        const existing = profiles.trips.find(t => t.id === trip.id);
+        if (existing) existing.currency = code;
+        saveTripProfiles(profiles);
+        return code;
+      }
+      return null;
     }
 
     function generateTripId(name, existingTrips = []) {
@@ -636,25 +791,39 @@
       return candidate;
     }
 
-    function createTrip(name) {
+    function createTrip(name, currency) {
       const trimmedName = String(name || '').trim();
       if (!trimmedName) return null;
+      const rawCurr = String(currency || '').trim().toUpperCase();
+      if (!/^[A-Z]{3}$/.test(rawCurr)) return null;
+
       const profiles = getTripProfiles();
       const newId = generateTripId(trimmedName, profiles.trips);
-      const newTrip = { id: newId, name: trimmedName };
+      const newTrip = { id: newId, name: trimmedName, currency: rawCurr };
       profiles.trips.push(newTrip);
       profiles.activeTripId = newId;
       saveTripProfiles(profiles);
       return newTrip;
     }
 
-    function switchActiveTrip(tripId) {
+    function switchActiveTrip(tripId, customPromptFn) {
       const profiles = getTripProfiles();
       const target = profiles.trips.find(t => t.id === tripId);
       if (!target) return;
+      if (!target.currency || !/^[A-Z]{3}$/.test(target.currency)) {
+        const code = ensureTripCurrency(target, customPromptFn);
+        if (!code) return;
+      }
       profiles.activeTripId = target.id;
       saveTripProfiles(profiles);
+      onActiveTripChanged();
+    }
+
+    function onActiveTripChanged() {
+      const activeTrip = getActiveTrip();
       renderActiveTripUI();
+      setupInputCurrencyToggle(activeTrip.currency);
+      loadExchangeRateForCurrency(activeTrip.currency);
       renderTotalsAndList();
     }
 
@@ -681,8 +850,8 @@
           }`;
           
           const labelSpan = document.createElement('span');
-          labelSpan.className = 'truncate pr-2';
-          labelSpan.textContent = trip.name;
+          labelSpan.className = 'truncate pr-2 flex items-center gap-1.5';
+          labelSpan.innerHTML = `<span>${escapeHtml(trip.name)}</span> <span class="text-[10px] text-slate-400 font-mono">(${escapeHtml(trip.currency || 'Set Currency')})</span>`;
           btn.appendChild(labelSpan);
 
           if (isActive) {
@@ -729,12 +898,16 @@
     function openNewTripModal() {
       closeTripDropdown();
       const modal = document.getElementById('newTripModal');
-      const input = document.getElementById('newTripNameInput');
+      const nameInput = document.getElementById('newTripNameInput');
+      const currInput = document.getElementById('newTripCurrencyInput');
+      const errEl = document.getElementById('newTripCurrencyError');
       if (modal) modal.classList.remove('hidden');
-      if (input) {
-        input.value = '';
-        setTimeout(() => input.focus(), 50);
+      if (nameInput) {
+        nameInput.value = '';
+        setTimeout(() => nameInput.focus(), 50);
       }
+      if (currInput) currInput.value = '';
+      if (errEl) errEl.classList.add('hidden');
     }
 
     function closeNewTripModal() {
@@ -744,15 +917,24 @@
 
     function handleCreateTripSubmit(e) {
       e.preventDefault();
-      const input = document.getElementById('newTripNameInput');
-      const name = input ? input.value.trim() : '';
+      const nameInput = document.getElementById('newTripNameInput');
+      const currInput = document.getElementById('newTripCurrencyInput');
+      const errEl = document.getElementById('newTripCurrencyError');
+      const name = nameInput ? nameInput.value.trim() : '';
+      const currency = currInput ? currInput.value.trim().toUpperCase() : '';
+
       if (!name) return;
-      const created = createTrip(name);
+      if (!/^[A-Z]{3}$/.test(currency)) {
+        if (errEl) errEl.classList.remove('hidden');
+        return;
+      }
+      if (errEl) errEl.classList.add('hidden');
+
+      const created = createTrip(name, currency);
       if (created) {
         closeNewTripModal();
-        renderActiveTripUI();
-        renderTotalsAndList();
-        showToast(`Switched to "${created.name}"`);
+        onActiveTripChanged();
+        showToast(`Switched to "${created.name}" (${created.currency})`);
       }
     }
 
@@ -766,49 +948,706 @@
       }
     });
 
-    window.addEventListener('DOMContentLoaded', () => {
-      document.getElementById('dateInput').value = InsightsData.dateKey(new Date());
-      
-      const savedWebhook = localStorage.getItem('gas_webhook_url') || '';
-      document.getElementById('settingWebhookUrl').value = savedWebhook;
+    // EXCHANGE RATE MANAGEMENT (CURRENCY-SAFE)
+    function getCustomExchangeRate(currency) {
+      const c = (currency || LEGACY_CURRENCY).toUpperCase();
+      const stored = localStorage.getItem(`custom_exchange_rate_${c}`);
+      if (stored && !isNaN(stored) && Number(stored) > 0) return parseFloat(stored);
+      if (c === 'PHP') {
+        const legacy = localStorage.getItem('custom_exchange_rate');
+        if (legacy && !isNaN(legacy) && Number(legacy) > 0) return parseFloat(legacy);
+      }
+      return null;
+    }
 
-      const savedPin = localStorage.getItem('gas_pin') || '7492';
-      document.getElementById('settingPin').value = savedPin;
-
-      const savedRate = localStorage.getItem('custom_exchange_rate');
-      if (savedRate) {
-        exchangeRateCadPerPhp = parseFloat(savedRate);
-        document.getElementById('settingCustomRate').value = savedRate;
-        updateRateDisplay();
+    function setCustomExchangeRate(currency, rate) {
+      const c = (currency || LEGACY_CURRENCY).toUpperCase();
+      if (rate && !isNaN(rate) && Number(rate) > 0) {
+        localStorage.setItem(`custom_exchange_rate_${c}`, String(rate));
+        if (c === 'PHP') localStorage.setItem('custom_exchange_rate', String(rate));
       } else {
-        fetchLiveExchangeRate();
+        localStorage.removeItem(`custom_exchange_rate_${c}`);
+        if (c === 'PHP') localStorage.removeItem('custom_exchange_rate');
+      }
+    }
+
+    function getCachedLiveExchangeRate(currency) {
+      const c = (currency || '').toUpperCase();
+      if (!c) return null;
+      const stored = localStorage.getItem(`live_exchange_rate_${c}`);
+      if (stored && !isNaN(stored) && Number(stored) > 0) {
+        return parseFloat(stored);
+      }
+      return null;
+    }
+
+    function setCachedLiveExchangeRate(currency, rate) {
+      const c = (currency || '').toUpperCase();
+      if (!c) return;
+      if (rate && !isNaN(rate) && Number(rate) > 0) {
+        localStorage.setItem(`live_exchange_rate_${c}`, String(rate));
+      } else {
+        localStorage.removeItem(`live_exchange_rate_${c}`);
+      }
+    }
+
+    function getEffectiveExchangeRate(currency) {
+      const c = (currency || getActiveTrip().currency || '').toUpperCase();
+      if (!c) return null;
+
+      // Priority 1: Custom rate for that exact currency
+      const custom = getCustomExchangeRate(c);
+      if (custom !== null && !isNaN(custom) && custom > 0) {
+        return custom;
       }
 
-      renderActiveTripUI();
+      // Priority 2: Cached live rate for that exact currency
+      const cached = getCachedLiveExchangeRate(c);
+      if (cached !== null && !isNaN(cached) && cached > 0) {
+        return cached;
+      }
+
+      // Priority 3: CAD => 1
+      if (c === 'CAD') {
+        return 1.0;
+      }
+
+      // Priority 4: PHP legacy default only for PHP
+      if (c === 'PHP') {
+        return 0.0227;
+      }
+
+      // Priority 5: Otherwise no valid rate
+      return null;
+    }
+
+    async function loadExchangeRateForCurrency(currency) {
+      const c = (currency || getActiveTrip().currency || '').toUpperCase();
+      activeExchangeRateCurrency = c;
+
+      // Immediately determine effective rate based on 1-5 priority
+      const effective = getEffectiveExchangeRate(c);
+      activeExchangeRate = effective;
+      if (c === 'PHP' && effective !== null) {
+        exchangeRateCadPerPhp = effective;
+      }
+
+      updateRateDisplay(c, activeExchangeRate);
+      handleCostInputChange();
+
+      // If CAD or custom rate exists, no live fetch needed
+      if (c === 'CAD' || getCustomExchangeRate(c) !== null) {
+        return;
+      }
+
+      // Sequence token to prevent stale async response from overwriting newer trip/currency
+      const reqId = ++exchangeRateRequestId;
+
+      if (!navigator.onLine) {
+        return;
+      }
+
+      try {
+        const res = await fetch(`https://open.er-api.com/v6/latest/${encodeURIComponent(c)}`);
+        const data = await res.json();
+        if (data && data.rates && typeof data.rates.CAD === 'number' && data.rates.CAD > 0) {
+          const rateVal = data.rates.CAD;
+          // Cache live rate per currency
+          setCachedLiveExchangeRate(c, rateVal);
+
+          // Only apply if this request is still the newest request and active currency is still this currency
+          const currentActive = (getActiveTrip().currency || '').toUpperCase();
+          if (reqId === exchangeRateRequestId && currentActive === c && getCustomExchangeRate(c) === null) {
+            activeExchangeRate = rateVal;
+            activeExchangeRateCurrency = c;
+            if (c === 'PHP') exchangeRateCadPerPhp = rateVal;
+            updateRateDisplay(c, activeExchangeRate);
+            handleCostInputChange();
+          }
+        }
+      } catch (err) {
+        console.warn(`Failed to fetch exchange rate for ${c}:`, err);
+      }
+    }
+
+    function updateRateDisplay(currency, rate) {
+      const c = (currency || getActiveTrip().currency || '').toUpperCase();
+      const r = (rate !== undefined && rate !== null && rate > 0)
+        ? rate
+        : (activeExchangeRateCurrency === c ? activeExchangeRate : getEffectiveExchangeRate(c));
+      const textEl = document.getElementById('displayRateText');
+      const currEl = document.getElementById('displayRateCurrency');
+      if (currEl) currEl.textContent = c;
+      if (textEl) {
+        if (r !== null && !isNaN(r) && r > 0) {
+          const unitsPerCad = (1 / r);
+          textEl.innerText = unitsPerCad >= 100 ? Math.round(unitsPerCad).toLocaleString() : unitsPerCad.toFixed(2);
+        } else {
+          textEl.innerText = '—';
+        }
+      }
+    }
+
+    function refreshCurrentTripRate() {
+      const activeCurr = getActiveTrip().currency;
+      setCustomExchangeRate(activeCurr, null);
+      document.getElementById('settingCustomRate').value = '';
+      loadExchangeRateForCurrency(activeCurr);
+      showToast(`Fetching live rate for ${activeCurr}...`);
+    }
+
+    // CURRENCY TOGGLE & INPUT HANDLING
+    function setupInputCurrencyToggle(localCurrency) {
+      const c = (localCurrency || getActiveTrip().currency).toUpperCase();
+      const sym = getCurrencySymbol(c);
+      const btnLocal = document.getElementById('currBtnPhp');
+      if (btnLocal) {
+        btnLocal.textContent = `${sym} ${c}`;
+      }
+      if (currentInputCurrency === 'CAD') {
+        setInputCurrency('CAD');
+      } else {
+        setInputCurrency('LOCAL');
+      }
+    }
+
+    function setInputCurrency(curr) {
+      const activeCurr = (editingExpenseCurrency || getActiveTrip().currency).toUpperCase();
+      const isCad = (curr === 'CAD');
+      currentInputCurrency = isCad ? 'CAD' : 'LOCAL';
+
+      const btnLocal = document.getElementById('currBtnPhp');
+      const btnCad = document.getElementById('currBtnCad');
+      const symbol = document.getElementById('inputSymbol');
+      const previewBadge = document.getElementById('previewBadge');
+      const previewLabel = document.getElementById('previewLabel');
+
+      if (!isCad) {
+        if (btnLocal) btnLocal.className = 'curr-btn-active px-3 py-1 rounded-lg text-xs font-bold transition';
+        if (btnCad) btnCad.className = 'text-slate-400 px-3 py-1 rounded-lg text-xs font-bold transition';
+        if (symbol) symbol.innerText = getCurrencySymbol(activeCurr);
+        if (previewBadge) {
+          previewBadge.innerText = 'CAD';
+          previewBadge.className = 'w-8 h-7 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs font-bold';
+        }
+        if (previewLabel) previewLabel.innerText = 'Equivalent in Canadian Dollars';
+      } else {
+        if (btnCad) btnCad.className = 'curr-btn-active px-3 py-1 rounded-lg text-xs font-bold transition';
+        if (btnLocal) btnLocal.className = 'text-slate-400 px-3 py-1 rounded-lg text-xs font-bold transition';
+        if (symbol) symbol.innerText = '$';
+        if (previewBadge) {
+          previewBadge.innerText = activeCurr;
+          previewBadge.className = 'w-8 h-7 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-bold';
+        }
+        if (previewLabel) previewLabel.innerText = `Equivalent in ${activeCurr}`;
+      }
+
       renderQuickChips();
+      handleCostInputChange();
+    }
+
+    function renderQuickChips() {
+      const container = document.getElementById('quickChipsContainer');
+      if (!container) return;
+      const isCad = (currentInputCurrency === 'CAD');
+      const curr = isCad ? 'CAD' : (editingExpenseCurrency || getActiveTrip().currency).toUpperCase();
+      const scale = getCurrencyScale(curr);
+      const sym = getCurrencySymbol(curr);
+
+      container.innerHTML = scale.chips.map(amount => {
+        const label = amount >= 1000 ? `${amount / 1000}K` : `${amount}`;
+        return `<button type="button" onclick="adjustAmount(${amount})" class="py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 text-xs font-bold text-slate-300 active:scale-95 transition">+${sym}${label}</button>`;
+      }).join('');
+    }
+
+    function handleCostInputChange() {
+      const val = parseFloat(document.getElementById('costInput').value) || 0;
+      const preview = document.getElementById('convertedPreview');
+      if (!preview) return;
+
+      const activeCurr = (editingExpenseCurrency || getActiveTrip().currency).toUpperCase();
+      let rate;
+      if (editingExpenseId && editingExpenseRate !== null && editingExpenseRate > 0) {
+        rate = editingExpenseRate;
+      } else if (activeExchangeRateCurrency === activeCurr && activeExchangeRate !== null && activeExchangeRate > 0) {
+        rate = activeExchangeRate;
+      } else {
+        rate = getEffectiveExchangeRate(activeCurr);
+      }
+
+      if (activeCurr !== 'CAD' && (!rate || isNaN(rate) || rate <= 0)) {
+        preview.innerText = 'Rate unavailable';
+        return;
+      }
+
+      if (activeCurr === 'CAD') {
+        preview.innerText = formatCurrency(val, 'CAD');
+        return;
+      }
+
+      if (currentInputCurrency === 'CAD') {
+        const localVal = (rate > 0) ? (val / rate) : 0;
+        preview.innerText = formatCurrency(localVal, activeCurr);
+      } else {
+        const cadVal = (val * rate);
+        preview.innerText = formatCurrency(cadVal, 'CAD');
+      }
+    }
+
+    function adjustAmount(delta) {
+      const input = document.getElementById('costInput');
+      let current = parseFloat(input.value) || 0;
+      const isCad = (currentInputCurrency === 'CAD');
+      const curr = isCad ? 'CAD' : (editingExpenseCurrency || getActiveTrip().currency).toUpperCase();
+      const scale = getCurrencyScale(curr);
+      let step = (Math.abs(delta) === 1) ? scale.step : delta;
+      let next = Math.max(0, current + (delta < 0 ? -Math.abs(step) : Math.abs(step)));
+      input.value = next;
+      handleCostInputChange();
+    }
+
+    function selectPaymentMethod(method) {
+      selectedPaymentMethod = method;
+      document.querySelectorAll('#paymentMethodContainer .pay-btn').forEach(btn => {
+        if (btn.innerText.includes(method)) {
+          btn.classList.add('pay-btn-active');
+        } else {
+          btn.classList.remove('pay-btn-active');
+        }
+      });
+    }
+
+    function selectBucket(bucketName, element) {
+      selectedBucket = bucketName;
+      document.querySelectorAll('#bucketContainer .btn-pill').forEach(btn => btn.classList.remove('btn-pill-active'));
+      
+      if (element) {
+        element.classList.add('btn-pill-active');
+      } else {
+        document.querySelectorAll('#bucketContainer .btn-pill').forEach(btn => {
+          if (btn.innerText.trim() === bucketName) btn.classList.add('btn-pill-active');
+        });
+      }
+
+      document.getElementById('activeBucketLabel').innerText = `${bucketName} Categories`;
       renderCategoryButtons();
+    }
+
+    function renderCategoryButtons() {
+      const catContainer = document.getElementById('categoryContainer');
+      const cats = BUCKET_CATEGORIES[selectedBucket] || [];
+      catContainer.innerHTML = '';
+
+      if (!cats.includes(selectedCategory)) {
+        selectedCategory = cats[0] || '';
+      }
+
+      cats.forEach((catName) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.onclick = () => selectCategory(catName, btn);
+        const isActive = (catName === selectedCategory);
+        btn.className = `btn-pill ${isActive ? 'btn-pill-active' : ''} py-3 px-2 rounded-2xl border border-slate-700 bg-slate-800/90 text-slate-200 text-xs font-semibold text-center transition`;
+        btn.innerText = catName;
+        catContainer.appendChild(btn);
+      });
+    }
+
+    function selectCategory(categoryName, element) {
+      selectedCategory = categoryName;
+      document.querySelectorAll('#categoryContainer .btn-pill').forEach(btn => btn.classList.remove('btn-pill-active'));
+      if (element) element.classList.add('btn-pill-active');
+    }
+
+    // EXPENSE EDITING (PRESERVES ORIGINAL TRIP & CURRENCY)
+    function startEditExpense(id) {
+      const item = masterExpenses.find(e => e.id.toString() === id.toString());
+      if (!item) return;
+
+      editingExpenseId = item.id;
+      editingExpenseTripId = getExpenseTripId(item);
+      editingExpenseCurrency = getExpenseLocalCurrency(item);
+      editingExpenseRate = (item.exchange_rate && !isNaN(item.exchange_rate) && Number(item.exchange_rate) > 0)
+        ? parseFloat(item.exchange_rate)
+        : getEffectiveExchangeRate(editingExpenseCurrency);
+
+      const localVal = getExpenseLocalCost(item);
+      const cadVal = InsightsData.parseAmount(item.cost_cad);
+
+      setupInputCurrencyToggle(editingExpenseCurrency);
+
+      if (Number.isFinite(localVal) && localVal > 0) {
+        setInputCurrency('LOCAL');
+        document.getElementById('costInput').value = localVal;
+      } else {
+        setInputCurrency('CAD');
+        document.getElementById('costInput').value = Number.isFinite(cadVal) ? cadVal : '';
+      }
+
+      document.getElementById('dateInput').value = item.date;
+      document.getElementById('itemInput').value = item.item;
+      document.getElementById('notesInput').value = item.notes || '';
+
+      selectPaymentMethod(item.payment_method || 'Cash');
+      selectBucket(item.bucket);
+      selectedCategory = item.category;
+      renderCategoryButtons();
+
+      handleCostInputChange();
+
+      document.getElementById('editingBanner').classList.remove('hidden');
+      document.getElementById('submitBtnText').innerText = 'Update Expense';
+      
+      toggleHistoryModal();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function cancelEditMode() {
+      editingExpenseId = null;
+      editingExpenseTripId = null;
+      editingExpenseCurrency = null;
+      editingExpenseRate = null;
+      document.getElementById('editingBanner').classList.add('hidden');
+      document.getElementById('submitBtnText').innerText = 'Save Expense';
+      const activeTrip = getActiveTrip();
+      setupInputCurrencyToggle(activeTrip.currency);
+      loadExchangeRateForCurrency(activeTrip.currency);
+      resetFormInputs();
+    }
+
+    function deleteSingleExpense(id) {
+      if (!confirm('Delete this expense?')) return;
+
+      if (editingExpenseId && editingExpenseId.toString() === id.toString()) {
+        cancelEditMode();
+      }
+
+      masterExpenses = masterExpenses.filter(item => item.id.toString() !== id.toString());
+      localStorage.setItem('travel_expenses_log', JSON.stringify(masterExpenses));
       renderTotalsAndList();
+
+      syncQueue.push({ action: 'delete', id: id });
+      localStorage.setItem('sync_queue', JSON.stringify(syncQueue));
+      updateSyncBadge();
+      showToast('Deleted');
+
+      flushQueueAndSync(false);
+    }
+
+    function resetFormInputs() {
+      document.getElementById('costInput').value = '';
+      document.getElementById('itemInput').value = '';
+      document.getElementById('notesInput').value = '';
+      document.getElementById('dateInput').value = InsightsData.dateKey(new Date());
+      handleCostInputChange();
+      if (editingExpenseId) cancelEditMode();
+    }
+
+    function handleFormSubmit(e) {
+      e.preventDefault();
+      
+      const inputVal = parseFloat(document.getElementById('costInput').value);
+      if (!inputVal || inputVal <= 0) {
+        showToast('Please enter an amount', true);
+        return;
+      }
+
+      let tripId;
+      let currencyLocal;
+      let rateToUse;
+
+      if (editingExpenseId) {
+        const existing = masterExpenses.find(e => e.id.toString() === editingExpenseId.toString());
+        tripId = editingExpenseTripId || getExpenseTripId(existing);
+        currencyLocal = editingExpenseCurrency || getExpenseLocalCurrency(existing);
+        rateToUse = (editingExpenseRate !== null && editingExpenseRate > 0)
+          ? editingExpenseRate
+          : (existing && existing.exchange_rate > 0 ? parseFloat(existing.exchange_rate) : getEffectiveExchangeRate(currencyLocal));
+      } else {
+        const activeTrip = getActiveTrip();
+        tripId = activeTrip.id;
+        currencyLocal = activeTrip.currency;
+        if (activeExchangeRateCurrency === currencyLocal && activeExchangeRate !== null && activeExchangeRate > 0) {
+          rateToUse = activeExchangeRate;
+        } else {
+          rateToUse = getEffectiveExchangeRate(currencyLocal);
+        }
+      }
+
+      if (currencyLocal === 'CAD') {
+        rateToUse = 1.0;
+      }
+
+      // Fail closed when rate is unavailable: do not save using 0 or wrong rate, preserve form inputs
+      if (!rateToUse || isNaN(rateToUse) || rateToUse <= 0) {
+        showToast('Exchange rate unavailable. Connect to the internet or set a custom rate.', true);
+        return;
+      }
+
+      let costLocal, costCad;
+      if (currentInputCurrency === 'CAD') {
+        costCad = inputVal;
+        costLocal = parseFloat((inputVal / rateToUse).toFixed(2));
+      } else {
+        costLocal = inputVal;
+        costCad = parseFloat((inputVal * rateToUse).toFixed(2));
+      }
+
+      const date = document.getElementById('dateInput').value;
+      const item = document.getElementById('itemInput').value.trim();
+      const notes = document.getElementById('notesInput').value.trim();
+
+      // Canonical expense record model (Additive Only)
+      const expenseRecord = {
+        id: editingExpenseId ? editingExpenseId : generateId(),
+        trip_id: tripId,
+        date: date,
+        cost_local: costLocal,
+        currency_local: currencyLocal,
+        cost_cad: costCad,
+        exchange_rate: rateToUse,
+        payment_method: selectedPaymentMethod,
+        bucket: selectedBucket,
+        category: selectedCategory,
+        item: item,
+        notes: notes
+      };
+
+      // Legacy PHP support: populate cost_php only if currency_local === 'PHP'
+      if (currencyLocal === 'PHP') {
+        expenseRecord.cost_php = costLocal;
+      }
+
+      // Optimistic local state update
+      if (editingExpenseId) {
+        const index = masterExpenses.findIndex(e => e.id.toString() === editingExpenseId.toString());
+        if (index !== -1) masterExpenses[index] = expenseRecord;
+        cancelEditMode();
+      } else {
+        masterExpenses.unshift(expenseRecord);
+      }
+
+      localStorage.setItem('travel_expenses_log', JSON.stringify(masterExpenses));
+      renderTotalsAndList();
+      resetFormInputs();
+
+      // Push save action to offline sync queue
+      syncQueue = syncQueue.filter(q => q.id !== expenseRecord.id);
+      syncQueue.push(expenseRecord);
+      localStorage.setItem('sync_queue', JSON.stringify(syncQueue));
       updateSyncBadge();
 
-      // Flush queue and pull from sheet
+      showToast(navigator.onLine ? 'Saved Instantly!' : 'Saved to Phone (Offline)');
       flushQueueAndSync(false);
-    });
+    }
 
-    // NETWORK STATUS LISTENERS
-    window.addEventListener('online', () => {
-      document.getElementById('onlineDot').className = 'inline-block w-1.5 h-1.5 rounded-full bg-emerald-400';
-      flushQueueAndSync(false);
-    });
+    function renderTotalsAndList() {
+      let totalLocal = 0;
+      let totalCad = 0;
 
-    window.addEventListener('offline', () => {
-      document.getElementById('onlineDot').className = 'inline-block w-1.5 h-1.5 rounded-full bg-amber-400';
-      updateSyncBadge();
-    });
+      const container = document.getElementById('historyListContainer');
+      container.replaceChildren();
 
-    window.addEventListener('focus', () => flushQueueAndSync(false));
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') flushQueueAndSync(false);
-    });
+      const activeTrip = getActiveTrip();
+      const activeExpenses = getActiveTripExpenses();
+
+      activeExpenses.forEach(item => {
+        const cad = InsightsData.parseAmount(item.cost_cad);
+        const localCost = getExpenseLocalCost(item);
+        const itemCurrency = getExpenseLocalCurrency(item);
+
+        if (Number.isFinite(cad)) totalCad += cad;
+        if (Number.isFinite(localCost)) totalLocal += localCost;
+
+        const card = document.createElement('div');
+        card.className = 'p-3 bg-slate-800/80 rounded-2xl border border-slate-700/60 flex justify-between items-center gap-2';
+
+        const leftCol = document.createElement('div');
+        leftCol.className = 'flex-1 pr-1';
+
+        const itemEl = document.createElement('div');
+        itemEl.className = 'font-bold text-white text-sm';
+        itemEl.textContent = item.item || 'Untitled expense';
+        leftCol.appendChild(itemEl);
+
+        const metaEl = document.createElement('div');
+        metaEl.className = 'text-[11px] text-slate-400 flex items-center gap-1 mt-0.5';
+
+        const dateSpan = document.createElement('span');
+        dateSpan.textContent = item.date || '';
+        metaEl.appendChild(dateSpan);
+
+        const dot1 = document.createTextNode(' • ');
+        metaEl.appendChild(dot1);
+
+        const catSpan = document.createElement('span');
+        catSpan.className = 'text-amber-400 font-medium';
+        catSpan.textContent = item.category || 'Uncategorized';
+        metaEl.appendChild(catSpan);
+
+        const dot2 = document.createTextNode(' • ');
+        metaEl.appendChild(dot2);
+
+        const paySpan = document.createElement('span');
+        paySpan.className = 'text-blue-400 font-medium';
+        paySpan.textContent = item.payment_method || 'Unspecified';
+        metaEl.appendChild(paySpan);
+
+        leftCol.appendChild(metaEl);
+
+        if (item.notes) {
+          const notesEl = document.createElement('div');
+          notesEl.className = 'text-[10px] text-slate-500 italic mt-0.5';
+          notesEl.textContent = `"${item.notes}"`;
+          leftCol.appendChild(notesEl);
+        }
+
+        card.appendChild(leftCol);
+
+        const rightCol = document.createElement('div');
+        rightCol.className = 'text-right flex items-center gap-2.5';
+
+        const amountsContainer = document.createElement('div');
+
+        const cadEl = document.createElement('div');
+        cadEl.className = 'font-extrabold text-blue-300 text-sm';
+        cadEl.textContent = Number.isFinite(cad) ? formatCurrency(cad, 'CAD') : '— CAD';
+        amountsContainer.appendChild(cadEl);
+
+        const localEl = document.createElement('div');
+        localEl.className = 'text-[10px] font-semibold text-amber-400';
+        localEl.textContent = Number.isFinite(localCost) ? formatCurrency(localCost, itemCurrency) : `— ${itemCurrency}`;
+        amountsContainer.appendChild(localEl);
+
+        rightCol.appendChild(amountsContainer);
+
+        const actionsContainer = document.createElement('div');
+        actionsContainer.className = 'flex flex-col gap-1';
+
+        const editBtn = document.createElement('button');
+        editBtn.type = 'button';
+        editBtn.title = 'Edit';
+        editBtn.className = 'w-8 h-8 rounded-lg bg-slate-700/60 hover:bg-slate-700 text-blue-400 active:scale-90 flex items-center justify-center transition';
+        const editIcon = document.createElement('i');
+        editIcon.className = 'fa-solid fa-pen text-xs';
+        editBtn.appendChild(editIcon);
+        editBtn.addEventListener('click', () => startEditExpense(item.id));
+        actionsContainer.appendChild(editBtn);
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.title = 'Delete';
+        deleteBtn.className = 'w-8 h-8 rounded-lg bg-slate-700/60 hover:bg-red-950/80 text-red-400 active:scale-90 flex items-center justify-center transition';
+        const deleteIcon = document.createElement('i');
+        deleteIcon.className = 'fa-solid fa-trash-can text-xs';
+        deleteBtn.appendChild(deleteIcon);
+        deleteBtn.addEventListener('click', () => deleteSingleExpense(item.id));
+        actionsContainer.appendChild(deleteBtn);
+
+        rightCol.appendChild(actionsContainer);
+        card.appendChild(rightCol);
+
+        container.appendChild(card);
+      });
+
+      if (activeExpenses.length === 0) {
+        const emptyDiv = document.createElement('div');
+        emptyDiv.className = 'text-center text-slate-500 py-8';
+        emptyDiv.textContent = 'No expenses logged yet.';
+        container.appendChild(emptyDiv);
+      }
+
+      document.getElementById('heroCadTotal').textContent = `$${totalCad.toFixed(2)}`;
+      const heroLocalEl = document.getElementById('heroPhpTotal');
+      if (heroLocalEl) {
+        heroLocalEl.textContent = formatCurrency(totalLocal, activeTrip.currency);
+      }
+      const heroLocalLabel = document.getElementById('heroLocalLabel');
+      if (heroLocalLabel) {
+        heroLocalLabel.textContent = `Total in ${activeTrip.currency}:`;
+      }
+
+      document.getElementById('historyCount').textContent = String(activeExpenses.length);
+      if (window.TravelInsights) window.TravelInsights.refresh(activeExpenses, activeTrip.currency);
+    }
+
+    function openSettingsModal() {
+      const activeCurr = getActiveTrip().currency;
+      const labelEl = document.getElementById('customRateLabel');
+      if (labelEl) labelEl.textContent = `Custom CAD per 1 ${activeCurr} Rate (Optional)`;
+      const custom = getCustomExchangeRate(activeCurr);
+      document.getElementById('settingCustomRate').value = custom ? String(custom) : '';
+      document.getElementById('settingsModal').classList.remove('hidden');
+    }
+
+    function closeSettingsModal() {
+      document.getElementById('settingsModal').classList.add('hidden');
+    }
+
+    function toggleHistoryModal() {
+      document.getElementById('historyModal').classList.toggle('hidden');
+    }
+
+    function saveSettings() {
+      const url = document.getElementById('settingWebhookUrl').value.trim();
+      const pin = document.getElementById('settingPin').value.trim();
+      const customRate = document.getElementById('settingCustomRate').value.trim();
+      const activeCurr = getActiveTrip().currency;
+
+      if (url) localStorage.setItem('gas_webhook_url', url);
+      if (pin) localStorage.setItem('gas_pin', pin);
+
+      if (customRate && !isNaN(customRate) && Number(customRate) > 0) {
+        const parsedRate = parseFloat(customRate);
+        setCustomExchangeRate(activeCurr, parsedRate);
+        activeExchangeRate = parsedRate;
+        activeExchangeRateCurrency = activeCurr;
+        if (activeCurr === 'PHP') exchangeRateCadPerPhp = activeExchangeRate;
+        updateRateDisplay(activeCurr, activeExchangeRate);
+      } else {
+        setCustomExchangeRate(activeCurr, null);
+        loadExchangeRateForCurrency(activeCurr);
+      }
+
+      closeSettingsModal();
+      showToast('Settings Saved!');
+      handleCostInputChange();
+      flushQueueAndSync(true);
+    }
+
+    function showToast(message, isError = false) {
+      const toast = document.getElementById('toastNotification');
+      const msgEl = document.getElementById('toastMsg');
+      const iconEl = document.getElementById('toastIcon');
+
+      msgEl.innerText = message;
+      if (isError) {
+        iconEl.className = 'fa-solid fa-triangle-exclamation text-amber-400 text-base';
+      } else {
+        iconEl.className = 'fa-solid fa-bolt text-emerald-400 text-base';
+      }
+
+      toast.classList.remove('opacity-0', '-translate-y-2');
+      toast.classList.add('opacity-100', 'translate-y-0');
+
+      setTimeout(() => {
+        toast.classList.remove('opacity-100', 'translate-y-0');
+        toast.classList.add('opacity-0', '-translate-y-2');
+      }, 1800);
+    }
+
+    function escapeHtml(text) {
+      if (!text) return '';
+      return String(text).replace(/[&<>"']/g, function(m) {
+        return {
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#039;'
+        }[m];
+      });
+    }
 
     function generateId() {
       return Math.random().toString(16).substring(2, 10);
@@ -816,6 +1655,7 @@
 
     function updateSyncBadge() {
       const badge = document.getElementById('syncBadge');
+      if (!badge) return;
       if (syncQueue.length > 0) {
         badge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/40 uppercase tracking-wide animate-pulse';
         badge.innerText = `☁️ ${syncQueue.length} Pending`;
@@ -878,474 +1718,56 @@
       }
     }
 
-    async function fetchLiveExchangeRate() {
-      if (!navigator.onLine) return;
-      try {
-        const res = await fetch('https://open.er-api.com/v6/latest/PHP');
-        const data = await res.json();
-        if (data && data.rates && data.rates.CAD) {
-          exchangeRateCadPerPhp = data.rates.CAD;
-          updateRateDisplay();
-          handleCostInputChange();
+    window.addEventListener('DOMContentLoaded', () => {
+      const dateEl = document.getElementById('dateInput');
+      if (dateEl) dateEl.value = InsightsData.dateKey(new Date());
+      
+      const savedWebhook = localStorage.getItem('gas_webhook_url') || '';
+      const webhookEl = document.getElementById('settingWebhookUrl');
+      if (webhookEl) webhookEl.value = savedWebhook;
+
+      const savedPin = localStorage.getItem('gas_pin') || '7492';
+      const pinEl = document.getElementById('settingPin');
+      if (pinEl) pinEl.value = savedPin;
+
+      let activeTrip = getActiveTrip();
+      if (!activeTrip.currency || !/^[A-Z]{3}$/.test(activeTrip.currency)) {
+        const code = ensureTripCurrency(activeTrip);
+        if (!code) {
+          switchActiveTrip(LEGACY_TRIP_ID);
+          activeTrip = getActiveTrip();
         }
-      } catch (err) {
-        updateRateDisplay();
       }
-    }
+      setupInputCurrencyToggle(activeTrip.currency);
+      loadExchangeRateForCurrency(activeTrip.currency);
 
-    function updateRateDisplay() {
-      const phpPerCad = (1 / exchangeRateCadPerPhp).toFixed(2);
-      document.getElementById('displayRateText').innerText = phpPerCad;
-    }
-
-    function setInputCurrency(curr) {
-      currentInputCurrency = curr;
-      const btnPhp = document.getElementById('currBtnPhp');
-      const btnCad = document.getElementById('currBtnCad');
-      const symbol = document.getElementById('inputSymbol');
-      const previewBadge = document.getElementById('previewBadge');
-      const previewLabel = document.getElementById('previewLabel');
-
-      if (curr === 'PHP') {
-        btnPhp.className = 'curr-btn-active px-3 py-1 rounded-lg text-xs font-bold transition';
-        btnCad.className = 'text-slate-400 px-3 py-1 rounded-lg text-xs font-bold transition';
-        symbol.innerText = '₱';
-        previewBadge.innerText = 'CAD';
-        previewBadge.className = 'w-8 h-7 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs font-bold';
-        previewLabel.innerText = 'Equivalent in Canadian Dollars';
-      } else {
-        btnCad.className = 'curr-btn-active px-3 py-1 rounded-lg text-xs font-bold transition';
-        btnPhp.className = 'text-slate-400 px-3 py-1 rounded-lg text-xs font-bold transition';
-        symbol.innerText = '$';
-        previewBadge.innerText = 'PHP';
-        previewBadge.className = 'w-8 h-7 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-bold';
-        previewLabel.innerText = 'Equivalent in Philippine Pesos';
-      }
-
+      renderActiveTripUI();
       renderQuickChips();
-      handleCostInputChange();
-    }
-
-    function renderQuickChips() {
-      const container = document.getElementById('quickChipsContainer');
-      if (currentInputCurrency === 'PHP') {
-        container.innerHTML = `
-          <button type="button" onclick="adjustAmount(50)" class="py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 text-xs font-bold text-slate-300 active:scale-95 transition">+₱50</button>
-          <button type="button" onclick="adjustAmount(100)" class="py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 text-xs font-bold text-slate-300 active:scale-95 transition">+₱100</button>
-          <button type="button" onclick="adjustAmount(500)" class="py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 text-xs font-bold text-slate-300 active:scale-95 transition">+₱500</button>
-          <button type="button" onclick="adjustAmount(1000)" class="py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 text-xs font-bold text-slate-300 active:scale-95 transition">+₱1K</button>
-        `;
-      } else {
-        container.innerHTML = `
-          <button type="button" onclick="adjustAmount(10)" class="py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 text-xs font-bold text-slate-300 active:scale-95 transition">+$10</button>
-          <button type="button" onclick="adjustAmount(50)" class="py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 text-xs font-bold text-slate-300 active:scale-95 transition">+$50</button>
-          <button type="button" onclick="adjustAmount(100)" class="py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 text-xs font-bold text-slate-300 active:scale-95 transition">+$100</button>
-          <button type="button" onclick="adjustAmount(500)" class="py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 text-xs font-bold text-slate-300 active:scale-95 transition">+$500</button>
-        `;
-      }
-    }
-
-    function handleCostInputChange() {
-      const val = parseFloat(document.getElementById('costInput').value) || 0;
-      const preview = document.getElementById('convertedPreview');
-
-      if (currentInputCurrency === 'PHP') {
-        const cad = (val * exchangeRateCadPerPhp).toFixed(2);
-        preview.innerText = `$${cad} CAD`;
-      } else {
-        const php = (val / exchangeRateCadPerPhp).toFixed(2);
-        preview.innerText = `₱${parseFloat(php).toLocaleString()} PHP`;
-      }
-    }
-
-    function adjustAmount(delta) {
-      const input = document.getElementById('costInput');
-      let current = parseFloat(input.value) || 0;
-      let step = (currentInputCurrency === 'PHP') ? ((Math.abs(delta) === 1) ? 50 : delta) : ((Math.abs(delta) === 1) ? 5 : delta);
-      let next = Math.max(0, current + (delta < 0 ? -Math.abs(step) : Math.abs(step)));
-      input.value = next;
-      handleCostInputChange();
-    }
-
-    function selectPaymentMethod(method) {
-      selectedPaymentMethod = method;
-      document.querySelectorAll('#paymentMethodContainer .pay-btn').forEach(btn => {
-        if (btn.innerText.includes(method)) {
-          btn.classList.add('pay-btn-active');
-        } else {
-          btn.classList.remove('pay-btn-active');
-        }
-      });
-    }
-
-    function selectBucket(bucketName, element) {
-      selectedBucket = bucketName;
-      document.querySelectorAll('#bucketContainer .btn-pill').forEach(btn => btn.classList.remove('btn-pill-active'));
-      
-      if (element) {
-        element.classList.add('btn-pill-active');
-      } else {
-        document.querySelectorAll('#bucketContainer .btn-pill').forEach(btn => {
-          if (btn.innerText.trim() === bucketName) btn.classList.add('btn-pill-active');
-        });
-      }
-
-      document.getElementById('activeBucketLabel').innerText = `${bucketName} Categories`;
       renderCategoryButtons();
-    }
-
-    function renderCategoryButtons() {
-      const catContainer = document.getElementById('categoryContainer');
-      const cats = BUCKET_CATEGORIES[selectedBucket] || [];
-      catContainer.innerHTML = '';
-
-      if (!cats.includes(selectedCategory)) {
-        selectedCategory = cats[0] || '';
-      }
-
-      cats.forEach((catName) => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.onclick = () => selectCategory(catName, btn);
-        const isActive = (catName === selectedCategory);
-        btn.className = `btn-pill ${isActive ? 'btn-pill-active' : ''} py-3 px-2 rounded-2xl border border-slate-700 bg-slate-800/90 text-slate-200 text-xs font-semibold text-center transition`;
-        btn.innerText = catName;
-        catContainer.appendChild(btn);
-      });
-    }
-
-    function selectCategory(categoryName, element) {
-      selectedCategory = categoryName;
-      document.querySelectorAll('#categoryContainer .btn-pill').forEach(btn => btn.classList.remove('btn-pill-active'));
-      if (element) element.classList.add('btn-pill-active');
-    }
-
-    function startEditExpense(id) {
-      const item = masterExpenses.find(e => e.id.toString() === id.toString());
-      if (!item) return;
-
-      editingExpenseId = item.id;
-      
-      const phpVal = InsightsData.parseAmount(item.cost_php);
-      const cadVal = InsightsData.parseAmount(item.cost_cad);
-
-      if (Number.isFinite(phpVal) && phpVal > 0) {
-        setInputCurrency('PHP');
-        document.getElementById('costInput').value = phpVal;
-      } else {
-        setInputCurrency('CAD');
-        document.getElementById('costInput').value = Number.isFinite(cadVal) ? cadVal : '';
-      }
-
-      document.getElementById('dateInput').value = item.date;
-      document.getElementById('itemInput').value = item.item;
-      document.getElementById('notesInput').value = item.notes || '';
-
-      selectPaymentMethod(item.payment_method || 'Cash');
-      selectBucket(item.bucket);
-      selectedCategory = item.category;
-      renderCategoryButtons();
-
-      handleCostInputChange();
-
-      document.getElementById('editingBanner').classList.remove('hidden');
-      document.getElementById('submitBtnText').innerText = 'Update Expense';
-      
-      toggleHistoryModal();
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-
-    function cancelEditMode() {
-      editingExpenseId = null;
-      document.getElementById('editingBanner').classList.add('hidden');
-      document.getElementById('submitBtnText').innerText = 'Save Expense';
-      resetFormInputs();
-    }
-
-    function deleteSingleExpense(id) {
-      if (!confirm('Delete this expense?')) return;
-
-      if (editingExpenseId && editingExpenseId.toString() === id.toString()) {
-        cancelEditMode();
-      }
-
-      // Local optimistic delete
-      masterExpenses = masterExpenses.filter(item => item.id.toString() !== id.toString());
-      localStorage.setItem('travel_expenses_log', JSON.stringify(masterExpenses));
       renderTotalsAndList();
-
-      // Push delete action to offline queue
-      syncQueue.push({ action: 'delete', id: id });
-      localStorage.setItem('sync_queue', JSON.stringify(syncQueue));
-      updateSyncBadge();
-      showToast('Deleted');
-
-      flushQueueAndSync(false);
-    }
-
-    function resetFormInputs() {
-      document.getElementById('costInput').value = '';
-      document.getElementById('itemInput').value = '';
-      document.getElementById('notesInput').value = '';
-      document.getElementById('dateInput').value = InsightsData.dateKey(new Date());
-      handleCostInputChange();
-      if (editingExpenseId) cancelEditMode();
-    }
-
-    function handleFormSubmit(e) {
-      e.preventDefault();
-      
-      const inputVal = parseFloat(document.getElementById('costInput').value);
-      if (!inputVal || inputVal <= 0) {
-        showToast('Please enter an amount', true);
-        return;
-      }
-
-      let costPhp, costCad;
-      if (currentInputCurrency === 'PHP') {
-        costPhp = inputVal;
-        costCad = parseFloat((inputVal * exchangeRateCadPerPhp).toFixed(2));
-      } else {
-        costCad = inputVal;
-        costPhp = parseFloat((inputVal / exchangeRateCadPerPhp).toFixed(2));
-      }
-
-      const date = document.getElementById('dateInput').value;
-      const item = document.getElementById('itemInput').value.trim();
-      const notes = document.getElementById('notesInput').value.trim();
-
-      let tripId;
-      if (editingExpenseId) {
-        const existing = masterExpenses.find(e => e.id.toString() === editingExpenseId.toString());
-        tripId = getExpenseTripId(existing);
-      } else {
-        tripId = getActiveTripId();
-      }
-
-      const expenseRecord = {
-        id: editingExpenseId ? editingExpenseId : generateId(),
-        trip_id: tripId,
-        date: date,
-        cost_php: costPhp,
-        cost_cad: costCad,
-        exchange_rate: exchangeRateCadPerPhp,
-        payment_method: selectedPaymentMethod,
-        bucket: selectedBucket,
-        category: selectedCategory,
-        item: item,
-        notes: notes
-      };
-
-      // Optimistic local state update
-      if (editingExpenseId) {
-        const index = masterExpenses.findIndex(e => e.id.toString() === editingExpenseId.toString());
-        if (index !== -1) masterExpenses[index] = expenseRecord;
-        cancelEditMode();
-      } else {
-        masterExpenses.unshift(expenseRecord);
-      }
-
-      localStorage.setItem('travel_expenses_log', JSON.stringify(masterExpenses));
-      renderTotalsAndList();
-      resetFormInputs();
-
-      // Push save action to offline queue
-      syncQueue = syncQueue.filter(q => q.id !== expenseRecord.id);
-      syncQueue.push(expenseRecord);
-      localStorage.setItem('sync_queue', JSON.stringify(syncQueue));
       updateSyncBadge();
 
-      showToast(navigator.onLine ? 'Saved Instantly!' : 'Saved to Phone (Offline)');
+      // Flush queue and pull from sheet
       flushQueueAndSync(false);
-    }
+    });
 
-    function renderTotalsAndList() {
-      let totalPhp = 0;
-      let totalCad = 0;
+    // NETWORK STATUS LISTENERS
+    window.addEventListener('online', () => {
+      const dot = document.getElementById('onlineDot');
+      if (dot) dot.className = 'inline-block w-1.5 h-1.5 rounded-full bg-emerald-400';
+      flushQueueAndSync(false);
+    });
 
-      const container = document.getElementById('historyListContainer');
-      container.replaceChildren();
+    window.addEventListener('offline', () => {
+      const dot = document.getElementById('onlineDot');
+      if (dot) dot.className = 'inline-block w-1.5 h-1.5 rounded-full bg-amber-400';
+      updateSyncBadge();
+    });
 
-      const activeExpenses = getActiveTripExpenses();
-
-      activeExpenses.forEach(item => {
-        const cad = InsightsData.parseAmount(item.cost_cad);
-        const php = InsightsData.parseAmount(item.cost_php);
-        if (Number.isFinite(cad)) totalCad += cad;
-        if (Number.isFinite(php)) totalPhp += php;
-
-        const card = document.createElement('div');
-        card.className = 'p-3 bg-slate-800/80 rounded-2xl border border-slate-700/60 flex justify-between items-center gap-2';
-
-        const leftCol = document.createElement('div');
-        leftCol.className = 'flex-1 pr-1';
-
-        const itemEl = document.createElement('div');
-        itemEl.className = 'font-bold text-white text-sm';
-        itemEl.textContent = item.item || 'Untitled expense';
-        leftCol.appendChild(itemEl);
-
-        const metaEl = document.createElement('div');
-        metaEl.className = 'text-[11px] text-slate-400 flex items-center gap-1 mt-0.5';
-
-        const dateSpan = document.createElement('span');
-        dateSpan.textContent = item.date || '';
-        metaEl.appendChild(dateSpan);
-
-        const dot1 = document.createTextNode(' • ');
-        metaEl.appendChild(dot1);
-
-        const catSpan = document.createElement('span');
-        catSpan.className = 'text-amber-400 font-medium';
-        catSpan.textContent = item.category || 'Uncategorized';
-        metaEl.appendChild(catSpan);
-
-        const dot2 = document.createTextNode(' • ');
-        metaEl.appendChild(dot2);
-
-        const paySpan = document.createElement('span');
-        paySpan.className = 'text-blue-400 font-medium';
-        paySpan.textContent = item.payment_method || 'Unspecified';
-        metaEl.appendChild(paySpan);
-
-        leftCol.appendChild(metaEl);
-
-        if (item.notes) {
-          const notesEl = document.createElement('div');
-          notesEl.className = 'text-[10px] text-slate-500 italic mt-0.5';
-          notesEl.textContent = `"${item.notes}"`;
-          leftCol.appendChild(notesEl);
-        }
-
-        card.appendChild(leftCol);
-
-        const rightCol = document.createElement('div');
-        rightCol.className = 'text-right flex items-center gap-2.5';
-
-        const amountsContainer = document.createElement('div');
-
-        const cadEl = document.createElement('div');
-        cadEl.className = 'font-extrabold text-blue-300 text-sm';
-        cadEl.textContent = Number.isFinite(cad) ? `$${cad.toFixed(2)} CAD` : '— CAD';
-        amountsContainer.appendChild(cadEl);
-
-        const phpEl = document.createElement('div');
-        phpEl.className = 'text-[10px] font-semibold text-amber-400';
-        phpEl.textContent = Number.isFinite(php) ? `₱${Math.round(php).toLocaleString()} PHP` : '— PHP';
-        amountsContainer.appendChild(phpEl);
-
-        rightCol.appendChild(amountsContainer);
-
-        const actionsContainer = document.createElement('div');
-        actionsContainer.className = 'flex flex-col gap-1';
-
-        const editBtn = document.createElement('button');
-        editBtn.type = 'button';
-        editBtn.title = 'Edit';
-        editBtn.className = 'w-8 h-8 rounded-lg bg-slate-700/60 hover:bg-slate-700 text-blue-400 active:scale-90 flex items-center justify-center transition';
-        const editIcon = document.createElement('i');
-        editIcon.className = 'fa-solid fa-pen text-xs';
-        editBtn.appendChild(editIcon);
-        editBtn.addEventListener('click', () => startEditExpense(item.id));
-        actionsContainer.appendChild(editBtn);
-
-        const deleteBtn = document.createElement('button');
-        deleteBtn.type = 'button';
-        deleteBtn.title = 'Delete';
-        deleteBtn.className = 'w-8 h-8 rounded-lg bg-slate-700/60 hover:bg-red-950/80 text-red-400 active:scale-90 flex items-center justify-center transition';
-        const deleteIcon = document.createElement('i');
-        deleteIcon.className = 'fa-solid fa-trash-can text-xs';
-        deleteBtn.appendChild(deleteIcon);
-        deleteBtn.addEventListener('click', () => deleteSingleExpense(item.id));
-        actionsContainer.appendChild(deleteBtn);
-
-        rightCol.appendChild(actionsContainer);
-        card.appendChild(rightCol);
-
-        container.appendChild(card);
-      });
-
-      if (activeExpenses.length === 0) {
-        const emptyDiv = document.createElement('div');
-        emptyDiv.className = 'text-center text-slate-500 py-8';
-        emptyDiv.textContent = 'No expenses logged yet.';
-        container.appendChild(emptyDiv);
-      }
-
-      document.getElementById('heroCadTotal').textContent = `$${totalCad.toFixed(2)}`;
-      document.getElementById('heroPhpTotal').textContent = `₱${Math.round(totalPhp).toLocaleString()} PHP`;
-      document.getElementById('historyCount').textContent = String(activeExpenses.length);
-      if (window.TravelInsights) window.TravelInsights.refresh(activeExpenses);
-    }
-
-    function openSettingsModal() {
-      document.getElementById('settingsModal').classList.remove('hidden');
-    }
-
-    function closeSettingsModal() {
-      document.getElementById('settingsModal').classList.add('hidden');
-    }
-
-    function toggleHistoryModal() {
-      document.getElementById('historyModal').classList.toggle('hidden');
-    }
-
-    function saveSettings() {
-      const url = document.getElementById('settingWebhookUrl').value.trim();
-      const pin = document.getElementById('settingPin').value.trim();
-      const customRate = document.getElementById('settingCustomRate').value.trim();
-
-      if (url) localStorage.setItem('gas_webhook_url', url);
-      if (pin) localStorage.setItem('gas_pin', pin);
-
-      if (customRate && !isNaN(customRate)) {
-        exchangeRateCadPerPhp = parseFloat(customRate);
-        localStorage.setItem('custom_exchange_rate', customRate);
-        updateRateDisplay();
-      } else {
-        localStorage.removeItem('custom_exchange_rate');
-        fetchLiveExchangeRate();
-      }
-
-      closeSettingsModal();
-      showToast('Settings Saved!');
-      handleCostInputChange();
-      flushQueueAndSync(true);
-    }
-
-    function showToast(message, isError = false) {
-      const toast = document.getElementById('toastNotification');
-      const msgEl = document.getElementById('toastMsg');
-      const iconEl = document.getElementById('toastIcon');
-
-      msgEl.innerText = message;
-      if (isError) {
-        iconEl.className = 'fa-solid fa-triangle-exclamation text-amber-400 text-base';
-      } else {
-        iconEl.className = 'fa-solid fa-bolt text-emerald-400 text-base';
-      }
-
-      toast.classList.remove('opacity-0', '-translate-y-2');
-      toast.classList.add('opacity-100', 'translate-y-0');
-
-      setTimeout(() => {
-        toast.classList.remove('opacity-100', 'translate-y-0');
-        toast.classList.add('opacity-0', '-translate-y-2');
-      }, 1800);
-    }
-
-    function escapeHtml(text) {
-      if (!text) return '';
-      return text.replace(/[&<>"']/g, function(m) {
-        return {
-          '&': '&amp;',
-          '<': '&lt;',
-          '>': '&gt;',
-          '"': '&quot;',
-          "'": '&#039;'
-        }[m];
-      });
-    }
+    window.addEventListener('focus', () => flushQueueAndSync(false));
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') flushQueueAndSync(false);
+    });
   </script>
   <script src="insights.js"></script>
 </body>
