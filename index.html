@@ -1284,7 +1284,10 @@
         document.getElementById('costInput').value = Number.isFinite(cadVal) ? cadVal : '';
       }
 
-      document.getElementById('dateInput').value = item.date;
+      const parsedDate = (typeof InsightsData !== 'undefined' && typeof InsightsData.parseDay === 'function')
+        ? InsightsData.parseDay(item.date)
+        : item.date;
+      document.getElementById('dateInput').value = parsedDate || '';
       document.getElementById('itemInput').value = item.item;
       document.getElementById('notesInput').value = item.notes || '';
 
